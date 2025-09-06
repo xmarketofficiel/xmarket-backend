@@ -1,0 +1,36 @@
+# Backend Development Dockerfile (NestJS with Hot Reload)
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache curl
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Expose ports
+EXPOSE 3001 9229
+
+# Set environment
+ENV NODE_ENV=development
+
+# Install nodemon globally for hot reload
+RUN npm install -g nodemon @nestjs/cli
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3001/categories || exit 1
+
+# Start command with hot reload and debug support
+CMD ["npm", "run", "start:debug"]

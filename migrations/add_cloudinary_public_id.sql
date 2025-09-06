@@ -1,0 +1,1 @@
+ALTER TABLE item_images ADD COLUMN IF NOT EXISTS public_id VARCHAR(255);
