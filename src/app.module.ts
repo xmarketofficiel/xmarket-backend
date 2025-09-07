@@ -92,7 +92,7 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
             logging: process.env.NODE_ENV === 'development',
             // SSL configuration for production (AWS RDS)
             // This fixes the "self-signed certificate in certificate chain" error
-            ssl: process.env.NODE_ENV === 'production' || url.searchParams.get('sslmode') === 'require' ? {
+            ssl: (process.env.NODE_ENV === 'production' || (url.searchParams.get('sslmode') === 'require')) ? {
               rejectUnauthorized: false,
               ca: undefined, // Don't require CA validation
             } : false,
