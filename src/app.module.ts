@@ -52,38 +52,83 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DATABASE_HOST'),
-        port: +configService.get('DATABASE_PORT'),
-        username: configService.get('DATABASE_USERNAME'),
-        password: configService.get('DATABASE_PASSWORD'),
-        database: configService.get('DATABASE_NAME'),
-        entities: [
-          User, 
-          Item, 
-          ItemImage, 
-          Interest, 
-          Otp, 
-          Rating, 
-          Service,
-          Conversation,
-          Message,
-          SearchHistory,
-          Category,
-          Notification,
-          ItemFavorite,
-          ItemReport,
-          ItemPurchase,
-          UserFollow,
-          UserBlock,
-          UserReport,
-          WaitlistEmail,
-          JoinRequest
-        ],
-        synchronize: process.env.NODE_ENV === 'development',
-        logging: process.env.NODE_ENV === 'development',
-      }),
+      useFactory: (configService: ConfigService) => {
+        // Support for DATABASE_URL (with SSL) or individual DATABASE_* variables
+        const databaseUrl = configService.get('DATABASE_URL');
+        
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            entities: [
+              User, 
+              Item, 
+              ItemImage, 
+              Interest, 
+              Otp, 
+              Rating, 
+              Service,
+              Conversation,
+              Message,
+              SearchHistory,
+              Category,
+              Notification,
+              ItemFavorite,
+              ItemReport,
+              ItemPurchase,
+              UserFollow,
+              UserBlock,
+              UserReport,
+              WaitlistEmail,
+              JoinRequest
+            ],
+            synchronize: process.env.NODE_ENV === 'development',
+            logging: process.env.NODE_ENV === 'development',
+            // SSL configuration for production (AWS RDS)
+            ssl: process.env.NODE_ENV === 'production' ? {
+              rejectUnauthorized: false
+            } : false,
+          };
+        }
+
+        // Fallback to individual DATABASE_* environment variables
+        return {
+          type: 'postgres',
+          host: configService.get('DATABASE_HOST'),
+          port: +configService.get('DATABASE_PORT'),
+          username: configService.get('DATABASE_USERNAME'),
+          password: configService.get('DATABASE_PASSWORD'),
+          database: configService.get('DATABASE_NAME'),
+          entities: [
+            User, 
+            Item, 
+            ItemImage, 
+            Interest, 
+            Otp, 
+            Rating, 
+            Service,
+            Conversation,
+            Message,
+            SearchHistory,
+            Category,
+            Notification,
+            ItemFavorite,
+            ItemReport,
+            ItemPurchase,
+            UserFollow,
+            UserBlock,
+            UserReport,
+            WaitlistEmail,
+            JoinRequest
+          ],
+          synchronize: process.env.NODE_ENV === 'development',
+          logging: process.env.NODE_ENV === 'development',
+          // SSL configuration for production (AWS RDS)
+          ssl: process.env.NODE_ENV === 'production' || configService.get('DATABASE_SSL') === 'true' ? {
+            rejectUnauthorized: false
+          } : false,
+        };
+      },
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot(
