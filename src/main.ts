@@ -22,13 +22,17 @@ async function bootstrap() {
   // Global exception filter
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // CORS configuration
+    // CORS configuration
   app.enableCors({
     origin: [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://localhost:3002', // Allow frontend on alternative port
-      'http://localhost:3000', // Default frontend port
-    ],
+      'http://localhost:3000',
+      'http://localhost:3002', // Admin panel (new port)
+      'http://localhost:3003', // Admin panel (old port)
+      process.env.FRONTEND_URL,
+      process.env.ADMIN_PANEL_URL
+    ].filter(Boolean), // Remove undefined values
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
   });
 
