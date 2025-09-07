@@ -23,12 +23,25 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // CORS configuration
+  const allowedOrigins = [
+    'http://localhost:3000', // Default frontend port (marketplace)
+    'http://localhost:3002', // Alternative frontend port (admin panel)
+  ];
+
+  // Add production frontend URLs from environment variables
+  if (process.env.FRONTEND_URL) {
+    // Handle comma-separated URLs or single URL
+    const frontendUrls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+    allowedOrigins.push(...frontendUrls);
+  }
+
+  // Add admin panel URL if specified
+  if (process.env.ADMIN_PANEL_URL) {
+    allowedOrigins.push(process.env.ADMIN_PANEL_URL);
+  }
+
   app.enableCors({
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://localhost:3002', // Allow frontend on alternative port
-      'http://localhost:3000', // Default frontend port
-    ],
+    origin: allowedOrigins,
     credentials: true,
   });
 
