@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const { DataSource } = require('typeorm');
 
 // This script runs ONCE to create tables in production database
+// Parse DATABASE_URL to extract components
+const databaseUrl = process.env.DATABASE_URL;
+console.log('🔗 Database URL:', databaseUrl);
+
 const AppDataSource = new DataSource({
   type: 'postgres',
-  url: process.env.DATABASE_URL,
+  url: databaseUrl,
   ssl: {
     rejectUnauthorized: false
   },
@@ -13,7 +20,7 @@ const AppDataSource = new DataSource({
     './dist/src/entities/*.js'
   ],
   synchronize: true, // ONLY for initialization
-  logging: false
+  logging: true // Enable logging to see what's happening
 });
 
 async function initializeDatabase() {
