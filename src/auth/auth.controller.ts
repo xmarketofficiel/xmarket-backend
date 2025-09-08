@@ -202,4 +202,13 @@ export class AuthController {
     }
     return this.joinRequestsService.findAll();
   }
+
+  @Public()
+  @Post('check-eligibility')
+  @ApiOperation({ summary: 'Check if email is eligible for signup' })
+  @ApiResponse({ status: 200, description: 'Email eligibility status' })
+  checkEligibility(@Body() body: { email: string }) {
+    console.log('✅ Auth check eligibility endpoint called with:', body);
+    return this.joinRequestsService.checkEmailEligibility(body.email);
+  }
 }

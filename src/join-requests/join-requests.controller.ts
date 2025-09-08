@@ -63,4 +63,26 @@ export class JoinRequestsController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.joinRequestsService.remove(id);
   }
+
+  @Post(':id/approve')
+  @ApiOperation({ summary: 'Approve a join request and send email (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Join request approved and email sent' })
+  @ApiResponse({ status: 404, description: 'Join request not found' })
+  approve(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reviewedBy: number; reviewNotes?: string }
+  ) {
+    return this.joinRequestsService.approve(id, body.reviewedBy, body.reviewNotes);
+  }
+
+  @Post(':id/reject')
+  @ApiOperation({ summary: 'Reject a join request (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Join request rejected' })
+  @ApiResponse({ status: 404, description: 'Join request not found' })
+  reject(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reviewedBy: number; reviewNotes?: string }
+  ) {
+    return this.joinRequestsService.reject(id, body.reviewedBy, body.reviewNotes);
+  }
 }

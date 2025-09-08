@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../email/email.service';
+import { JoinRequestsService } from '../join-requests/join-requests.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -26,6 +27,7 @@ export class AuthService {
     private configService: ConfigService,
     private otpService: OtpService,
     private emailService: EmailService,
+    private joinRequestsService: JoinRequestsService,
     @InjectRepository(JoinRequest)
     private joinRequestRepository: Repository<JoinRequest>,
   ) {}
@@ -66,6 +68,12 @@ export class AuthService {
   async sendOtp(sendOtpDto: SendOtpDto) {
     const { email } = sendOtpDto;
     
+    // Check email eligibility first
+    const eligibility = await this.joinRequestsService.checkEmailEligibility(email);
+    if (!eligibility.eligible) {
+      throw new UnauthorizedException('This email is not authorized to register. Please submit a join request first or use a valid university email.');
+    }
+    
     // Check if user already exists
     const existingUser = await this.usersService.findByEmail(email);
     if (existingUser && existingUser.isVerified) {
@@ -76,7 +84,10 @@ export class AuthService {
     const otp = await this.otpService.generateOtp(email, 'registration');
     await this.emailService.sendOtpEmail(email, otp, 'registration');
 
-    return { message: 'OTP sent to your email' };
+    return { 
+      message: 'OTP sent to your email',
+      eligibilityReason: eligibility.reason
+    };
   }
 
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
