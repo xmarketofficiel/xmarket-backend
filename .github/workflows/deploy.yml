@@ -22,52 +22,45 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-        cache-dependency-path: 'backend/package-lock.json'
+        cache-dependency-path: package-lock.json
         
     - name: Install dependencies
-      run: |
-        cd backend
-        npm ci
+      run: npm ci
         
     - name: Build application
-      run: |
-        cd backend
-        npm run build
+      run: npm run build
         
     - name: Deploy to EC2
-      uses: appleboy/ssh-action@v0.1.7
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_PRIVATE_KEY }}
+        timeout: 60s
         script: |
-          cd /home/ubuntu/xmarket-backend
-          git pull origin main
-          npm install --production
+          cd /home/ubuntu/xmarket-project/backend
+          
+          # Fix git configuration and pull latest changes
+          git fetch origin
+          git reset --hard origin/main
+          git config pull.rebase false
+          git clean -fd
+          
+          # Install dependencies and build
+          npm install
           npm run build
           
-          # Initialize database tables if needed
-          if [ ! -f .db-initialized ]; then
-            echo "🔄 Initializing database tables..."
-            node initialize-production-db.js
-            if [ $? -eq 0 ]; then
-              touch .db-initialized
-              echo "✅ Database initialized successfully!"
-            else
-              echo "❌ Database initialization failed!"
-              exit 1
-            fi
-          fi
-          
-          pm2 restart xmarket-backend
+          # Restart application with PM2
+          pm2 restart xmarket-backend || pm2 start dist/main.js --name xmarket-backend
           pm2 save
           
     - name: Verify deployment
-      uses: appleboy/ssh-action@v0.1.7
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_PRIVATE_KEY }}
+        timeout: 30s
         script: |
           sleep 10
           curl -f http://localhost:3001/api || exit 1
