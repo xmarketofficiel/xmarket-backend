@@ -88,7 +88,7 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
               WaitlistEmail,
               JoinRequest
             ],
-            synchronize: process.env.NODE_ENV === 'development',
+            synchronize: true, // Auto-create tables if they don't exist
             logging: process.env.NODE_ENV === 'development',
             // SSL configuration for production (AWS RDS)
             // This fixes the "self-signed certificate in certificate chain" error
