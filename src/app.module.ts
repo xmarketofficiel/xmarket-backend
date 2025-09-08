@@ -89,6 +89,7 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
               JoinRequest
             ],
             synchronize: true, // Auto-create tables if they don't exist
+            dropSchema: false, // Never drop existing data
             logging: process.env.NODE_ENV === 'development',
             // SSL configuration for production (AWS RDS)
             // This fixes the "self-signed certificate in certificate chain" error
