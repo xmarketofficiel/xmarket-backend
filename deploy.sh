@@ -29,11 +29,27 @@ cp -r dist deploy-package/
 cp package*.json deploy-package/
 cp .env.production deploy-package/.env
 cp -r uploads deploy-package/ 2>/dev/null || mkdir -p deploy-package/uploads
+cp initialize-production-db.js deploy-package/
 
 # Create start script for production
 cat > deploy-package/start.sh << 'EOF'
 #!/bin/bash
 export NODE_ENV=production
+
+# Initialize database tables on first run
+if [ ! -f .db-initialized ]; then
+    echo "🔄 Initializing database tables..."
+    node initialize-production-db.js
+    if [ $? -eq 0 ]; then
+        touch .db-initialized
+        echo "✅ Database initialized successfully!"
+    else
+        echo "❌ Database initialization failed!"
+        exit 1
+    fi
+fi
+
+# Start the application
 node dist/main.js
 EOF
 

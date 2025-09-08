@@ -22,17 +22,27 @@ async function bootstrap() {
   // Global exception filter
   app.useGlobalFilters(new HttpExceptionFilter());
 
-    // CORS configuration
+  // CORS configuration
+  const allowedOrigins = [
+    'http://localhost:3000', // Default frontend port (marketplace)
+    'http://localhost:3002', // Alternative frontend port (admin panel)
+    'http://localhost:3003', // Admin panel (dev port)
+  ];
+
+  // Add production frontend URLs from environment variables
+  if (process.env.FRONTEND_URL) {
+    // Handle comma-separated URLs or single URL
+    const frontendUrls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+    allowedOrigins.push(...frontendUrls);
+  }
+
+  // Add admin panel URL if specified
+  if (process.env.ADMIN_PANEL_URL) {
+    allowedOrigins.push(process.env.ADMIN_PANEL_URL);
+  }
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3002', // Admin panel (new port)
-      'http://localhost:3003', // Admin panel (old port)
-      process.env.FRONTEND_URL,
-      process.env.ADMIN_PANEL_URL
-    ].filter(Boolean), // Remove undefined values
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    origin: allowedOrigins,
     credentials: true,
   });
 
@@ -54,4 +64,4 @@ async function bootstrap() {
   console.log(`Swagger documentation: http://localhost:${port}/api`);
 }
 
-bootstrap();
+bootstrap();// Deployment test

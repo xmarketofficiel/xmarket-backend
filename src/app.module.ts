@@ -52,38 +52,94 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DATABASE_HOST'),
-        port: +configService.get('DATABASE_PORT'),
-        username: configService.get('DATABASE_USERNAME'),
-        password: configService.get('DATABASE_PASSWORD'),
-        database: configService.get('DATABASE_NAME'),
-        entities: [
-          User, 
-          Item, 
-          ItemImage, 
-          Interest, 
-          Otp, 
-          Rating, 
-          Service,
-          Conversation,
-          Message,
-          SearchHistory,
-          Category,
-          Notification,
-          ItemFavorite,
-          ItemReport,
-          ItemPurchase,
-          UserFollow,
-          UserBlock,
-          UserReport,
-          WaitlistEmail,
-          JoinRequest
-        ],
-        synchronize: process.env.NODE_ENV === 'development',
-        logging: process.env.NODE_ENV === 'development',
-      }),
+      useFactory: (configService: ConfigService) => {
+        // Support for DATABASE_URL (with SSL) or individual DATABASE_* variables
+        const databaseUrl = configService.get('DATABASE_URL');
+        
+        if (databaseUrl) {
+          // Parse the DATABASE_URL to extract connection details
+          const url = new URL(databaseUrl);
+          return {
+            type: 'postgres',
+            host: url.hostname,
+            port: parseInt(url.port) || 5432,
+            username: url.username,
+            password: url.password,
+            database: url.pathname.slice(1), // Remove leading slash
+            entities: [
+              User, 
+              Item, 
+              ItemImage, 
+              Interest, 
+              Otp, 
+              Rating, 
+              Service,
+              Conversation,
+              Message,
+              SearchHistory,
+              Category,
+              Notification,
+              ItemFavorite,
+              ItemReport,
+              ItemPurchase,
+              UserFollow,
+              UserBlock,
+              UserReport,
+              WaitlistEmail,
+              JoinRequest
+            ],
+            synchronize: true, // Auto-create tables if they don't exist
+            dropSchema: false, // Never drop existing data
+            logging: process.env.NODE_ENV === 'development',
+            // SSL configuration for production (AWS RDS)
+            // This fixes the "self-signed certificate in certificate chain" error
+            ssl: (process.env.NODE_ENV === 'production' || (url.searchParams.get('sslmode') === 'require')) ? {
+              rejectUnauthorized: false,
+              ca: undefined, // Don't require CA validation
+            } : false,
+          };
+        }
+
+        // Fallback to individual DATABASE_* environment variables
+        return {
+          type: 'postgres',
+          host: configService.get('DATABASE_HOST'),
+          port: +configService.get('DATABASE_PORT'),
+          username: configService.get('DATABASE_USERNAME'),
+          password: configService.get('DATABASE_PASSWORD'),
+          database: configService.get('DATABASE_NAME'),
+          entities: [
+            User, 
+            Item, 
+            ItemImage, 
+            Interest, 
+            Otp, 
+            Rating, 
+            Service,
+            Conversation,
+            Message,
+            SearchHistory,
+            Category,
+            Notification,
+            ItemFavorite,
+            ItemReport,
+            ItemPurchase,
+            UserFollow,
+            UserBlock,
+            UserReport,
+            WaitlistEmail,
+            JoinRequest
+          ],
+          synchronize: process.env.NODE_ENV === 'development',
+          logging: process.env.NODE_ENV === 'development',
+          // SSL configuration for production (AWS RDS)
+          // This fixes the "self-signed certificate in certificate chain" error
+          ssl: process.env.NODE_ENV === 'production' || configService.get('DATABASE_SSL') === 'true' ? {
+            rejectUnauthorized: false,
+            ca: undefined, // Don't require CA validation
+          } : false,
+        };
+      },
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot(

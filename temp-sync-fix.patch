@@ -1,0 +1,20 @@
+--- a/backend/src/app.module.ts
++++ b/backend/src/app.module.ts
+@@ -70,7 +70,7 @@ export class AppModule implements NestModule {
+               WaitlistEmail,
+               JoinRequest
+             ],
+-            synchronize: process.env.NODE_ENV === 'development',
++            synchronize: true, // Temporarily enabled for schema creation
+             logging: process.env.NODE_ENV === 'development',
+             // SSL configuration for production (AWS RDS)
+             // This fixes the "self-signed certificate in certificate chain" error
+@@ -102,7 +102,7 @@ export class AppModule implements NestModule {
+             WaitlistEmail,
+             JoinRequest
+           ],
+-          synchronize: process.env.NODE_ENV === 'development',
++          synchronize: true, // Temporarily enabled for schema creation
+           logging: process.env.NODE_ENV === 'development',
+           // SSL configuration for production (AWS RDS)
+           // This fixes the "self-signed certificate in certificate chain" error

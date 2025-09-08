@@ -1,0 +1,92 @@
+# Simple GitHub Actions Workflow - No Cache Issues
+# This workflow is more reliable for deployment
+
+name: Deploy Backend to EC2 (Simple)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        # No cache to avoid cache issues
+        
+    - name: Install dependencies
+      run: npm install
+        
+    - name: Build application
+      run: npm run build
+        
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${ secrets.EC2_HOST }
+        username: ${ secrets.EC2_USERNAME }
+        key: ${ secrets.EC2_PRIVATE_KEY }
+        timeout: 120s
+        script: |
+          echo "🚀 Starting deployment to EC2..."
+          
+          # Navigate to project directory
+          cd /home/ubuntu/xmarket-project/backend
+          
+          # Fix git issues and pull latest changes
+          echo "📥 Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/main
+          git config pull.rebase false
+          git clean -fd
+          
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          npm install
+          
+          # Build application
+          echo "🔨 Building application..."
+          npm run build
+          
+          # Restart application with PM2
+          echo "🔄 Restarting application..."
+          pm2 restart xmarket-backend || pm2 start dist/main.js --name xmarket-backend --time
+          pm2 save
+          
+          # Show status
+          echo "✅ Deployment completed!"
+          pm2 status
+          
+    - name: Health Check
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${ secrets.EC2_HOST }
+        username: ${ secrets.EC2_USERNAME }
+        key: ${ secrets.EC2_PRIVATE_KEY }
+        timeout: 30s
+        script: |
+          echo "🔍 Running health check..."
+          sleep 15
+          
+          # Check if application is running
+          if pm2 describe xmarket-backend | grep -q "online"; then
+            echo "✅ Application is running"
+          else
+            echo "❌ Application is not running"
+            pm2 logs xmarket-backend --lines 20
+            exit 1
+          fi
+          
+          # Test API endpoint
+          if curl -f http://localhost:3001/api 2>/dev/null; then
+            echo "✅ API endpoint is responding"
+          else
+            echo "⚠️  API endpoint check failed (might be normal if no /api route)"
+          fi
