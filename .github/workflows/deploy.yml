@@ -45,6 +45,20 @@ jobs:
           git pull origin main
           npm install --production
           npm run build
+          
+          # Initialize database tables if needed
+          if [ ! -f .db-initialized ]; then
+            echo "🔄 Initializing database tables..."
+            node initialize-production-db.js
+            if [ $? -eq 0 ]; then
+              touch .db-initialized
+              echo "✅ Database initialized successfully!"
+            else
+              echo "❌ Database initialization failed!"
+              exit 1
+            fi
+          fi
+          
           pm2 restart xmarket-backend
           pm2 save
           
