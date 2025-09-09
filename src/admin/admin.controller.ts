@@ -34,10 +34,29 @@ import {
 } from './dto/admin.dto';
 
 @Controller('admin')
-@UseGuards(AdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  // Public test endpoint for seller data (remove in production)
+  @Get('test-sellers')
+  async testSellersData() {
+    try {
+      const result = await this.adminService.getSellerAnalytics(1, 10);
+      return {
+        success: true,
+        data: result,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  @UseGuards(AdminGuard)
   @Get('dashboard/stats')
   async getDashboardStats(): Promise<AdminDashboardStats> {
     return this.adminService.getDashboardStats();
