@@ -1,3 +1,5 @@
+# Nixpacks configuration for Railway deployment
+
 [phases.setup]
 nixPkgs = ['nodejs-20_x', 'npm-9_x']
 
@@ -9,3 +11,6 @@ cmds = ['npm run build']
 
 [start]
 cmd = 'npm run start:prod'
+
+[variables]
+NODE_ENV = 'production'
