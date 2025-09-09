@@ -5,10 +5,6 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
-  "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=9.0.0"
-  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -25,9 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "create:admin": "ts-node scripts/create-admin.ts",
     "reset:user": "ts-node -r tsconfig-paths/register scripts/reset-user.ts",
-    "test:email": "ts-node -r tsconfig-paths/register scripts/test-email-eligibility.ts",
-    "railway:build": "npm ci && npm run build",
-    "railway:start": "npm run start:prod"
+    "test:email": "ts-node -r tsconfig-paths/register scripts/test-email-eligibility.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
