@@ -87,4 +87,24 @@ export class EmailService {
       this.logger.error(`Failed to send welcome email to ${email}:`, error);
     }
   }
+
+  async sendEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    from?: string;
+  }): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: options.from || this.configService.get('FROM_EMAIL'),
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+      this.logger.log(`Email sent to ${options.to}: ${options.subject}`);
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${options.to}:`, error);
+      throw error;
+    }
+  }
 }

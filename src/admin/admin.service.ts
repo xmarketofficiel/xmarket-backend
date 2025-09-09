@@ -94,6 +94,348 @@ export class AdminService {
     };
   }
 
+  async getAnalyticsOverview() {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    try {
+      const [
+        totalUsers, totalItems, activeListings, soldItems,
+        newUsersLast30Days, newItemsLast30Days,
+        newUsersLast7Days, newItemsLast7Days
+      ] = await Promise.all([
+        this.userRepository.count(),
+        this.itemRepository.count(),
+        this.itemRepository.count({ where: { isActive: true, isSold: false } }),
+        this.itemRepository.count({ where: { isSold: true } }),
+        this.userRepository.count({ where: { createdAt: MoreThan(thirtyDaysAgo) } }),
+        this.itemRepository.count({ where: { createdAt: MoreThan(thirtyDaysAgo) } }),
+        this.userRepository.count({ where: { createdAt: MoreThan(sevenDaysAgo) } }),
+        this.itemRepository.count({ where: { createdAt: MoreThan(sevenDaysAgo) } })
+      ]);
+
+      // Calculate revenue separately with error handling
+      let totalRevenue = 0;
+      let avgItemPrice = 0;
+      let topCategories = [];
+
+      try {
+        const revenueResult = await this.itemRepository
+          .createQueryBuilder('item')
+          .select('SUM(item.price)', 'sum')
+          .where('item.isSold = true')
+          .getRawOne();
+        totalRevenue = revenueResult?.sum || 0;
+      } catch (error) {
+        console.error('Error calculating total revenue:', error);
+      }
+
+      try {
+        const avgResult = await this.itemRepository
+          .createQueryBuilder('item')
+          .select('AVG(item.price)', 'avg')
+          .getRawOne();
+        avgItemPrice = avgResult?.avg || 0;
+      } catch (error) {
+        console.error('Error calculating average price:', error);
+      }
+
+      try {
+        topCategories = await this.itemRepository
+          .createQueryBuilder('item')
+          .select(['item.category as name', 'COUNT(item.id) as count'])
+          .groupBy('item.category')
+          .orderBy('COUNT(item.id)', 'DESC')
+          .limit(5)
+          .getRawMany();
+      } catch (error) {
+        console.error('Error getting top categories:', error);
+        topCategories = [];
+      }
+
+      const conversionRate = totalItems > 0 ? ((soldItems / totalItems) * 100).toFixed(1) : '0';
+      
+      return {
+        overview: {
+          totalUsers,
+          totalItems,
+          activeListings,
+          soldItems,
+          conversionRate: parseFloat(conversionRate),
+          totalRevenue: totalRevenue || 0,
+          avgItemPrice: avgItemPrice || 0
+        },
+        growth: {
+          usersGrowth30Days: newUsersLast30Days,
+          itemsGrowth30Days: newItemsLast30Days,
+          usersGrowth7Days: newUsersLast7Days,
+          itemsGrowth7Days: newItemsLast7Days
+        },
+        topCategories
+      };
+    } catch (error) {
+      console.error('Error in getAnalyticsOverview:', error);
+      throw error;
+    }
+  }
+
+  async getUserGrowthAnalytics(days: number = 30) {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    const userGrowth = await this.userRepository
+      .createQueryBuilder('user')
+      .select('DATE(user.createdAt) as date')
+      .addSelect('COUNT(user.id) as count')
+      .where('user.createdAt >= :startDate', { startDate })
+      .groupBy('DATE(user.createdAt)')
+      .orderBy('DATE(user.createdAt)', 'ASC')
+      .getRawMany();
+
+    const verifiedUsers = await this.userRepository.count({ where: { isVerified: true } });
+    const unverifiedUsers = await this.userRepository.count({ where: { isVerified: false } });
+    
+    return {
+      dailyGrowth: userGrowth,
+      verification: {
+        verified: verifiedUsers,
+        unverified: unverifiedUsers,
+        verificationRate: ((verifiedUsers / (verifiedUsers + unverifiedUsers)) * 100).toFixed(1)
+      }
+    };
+  }
+
+  async getRevenueAnalytics(days: number = 30) {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    const dailyRevenue = await this.itemRepository
+      .createQueryBuilder('item')
+      .select('DATE(item.createdAt) as date')
+      .addSelect('SUM(item.price) as revenue')
+      .addSelect('COUNT(item.id) as transactions')
+      .where('item.isSold = true')
+      .andWhere('item.createdAt >= :startDate', { startDate })
+      .groupBy('DATE(item.createdAt)')
+      .orderBy('DATE(item.createdAt)', 'ASC')
+      .getRawMany();
+
+    const priceRanges = await this.itemRepository
+      .createQueryBuilder('item')
+      .select([
+        'SUM(CASE WHEN item.price < 100 THEN 1 ELSE 0 END) as under100',
+        'SUM(CASE WHEN item.price >= 100 AND item.price < 500 THEN 1 ELSE 0 END) as range100to500',
+        'SUM(CASE WHEN item.price >= 500 AND item.price < 1000 THEN 1 ELSE 0 END) as range500to1000',
+        'SUM(CASE WHEN item.price >= 1000 THEN 1 ELSE 0 END) as over1000'
+      ])
+      .getRawOne();
+
+    return {
+      dailyRevenue,
+      priceDistribution: [
+        { range: 'Under $100', count: parseInt(priceRanges.under100) || 0 },
+        { range: '$100-$500', count: parseInt(priceRanges.range100to500) || 0 },
+        { range: '$500-$1000', count: parseInt(priceRanges.range500to1000) || 0 },
+        { range: 'Over $1000', count: parseInt(priceRanges.over1000) || 0 }
+      ]
+    };
+  }
+
+  async getItemPerformanceAnalytics() {
+    try {
+      // Top performing items - using actual column names from Item entity
+      const topPerformingItems = await this.itemRepository
+        .createQueryBuilder('item')
+        .leftJoin('item.seller', 'seller')
+        .select([
+          'item.id', 
+          'item.title', 
+          'item.price', 
+          'item.viewCount', 
+          'item.category',
+          'item.isSold',
+          'seller.fullName as sellerName'
+        ])
+        .orderBy('item.viewCount', 'DESC')
+        .limit(10)
+        .getRawMany();
+
+      // Items by status (using actual boolean columns)
+      const itemsByStatus = await this.itemRepository
+        .createQueryBuilder('item')
+        .select([
+          'SUM(CASE WHEN item.isSold = true THEN 1 ELSE 0 END) as sold',
+          'SUM(CASE WHEN item.isSold = false AND item.isActive = true THEN 1 ELSE 0 END) as active',
+          'SUM(CASE WHEN item.isActive = false THEN 1 ELSE 0 END) as inactive'
+        ])
+        .getRawOne();
+
+      // Category performance - category is a string column
+      const categoryPerformance = await this.itemRepository
+        .createQueryBuilder('item')
+        .select([
+          'item.category',
+          'COUNT(item.id) as totalItems',
+          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
+          'AVG(item.price) as avgPrice',
+          'SUM(item.viewCount) as totalViews'
+        ])
+        .groupBy('item.category')
+        .getRawMany();
+
+      return {
+        topPerformingItems,
+        statusDistribution: {
+          sold: parseInt(itemsByStatus.sold) || 0,
+          active: parseInt(itemsByStatus.active) || 0,
+          inactive: parseInt(itemsByStatus.inactive) || 0
+        },
+        categoryPerformance
+      };
+    } catch (error) {
+      console.error('Error in getItemPerformanceAnalytics:', error);
+      throw new Error('Failed to get item performance analytics');
+    }
+  }
+
+  async getSellerAnalytics(page: number = 1, limit: number = 10) {
+    try {
+      // Calculate offset for pagination
+      const offset = (page - 1) * limit;
+
+      // Get total count for pagination
+      const totalCountQuery = await this.itemRepository
+        .createQueryBuilder('item')
+        .leftJoin('item.seller', 'seller')
+        .select('COUNT(DISTINCT seller.id) as total')
+        .where('seller.id IS NOT NULL')
+        .getRawOne();
+
+      const totalSellers = parseInt(totalCountQuery?.total || '0');
+
+      // Get paginated sellers ordered by revenue (highest to lowest)
+      const sellersData = await this.itemRepository
+        .createQueryBuilder('item')
+        .leftJoin('item.seller', 'seller')
+        .select([
+          'seller.id as sellerId',
+          'seller.fullName as sellerName',
+          'seller.email as sellerEmail', 
+          'seller.role as sellerRole',
+          'seller.createdAt as joinedDate',
+          'COUNT(item.id) as totalItems',
+          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
+          'SUM(CASE WHEN item.isSold = true THEN item.price ELSE 0 END) as totalProfit',
+          'AVG(CASE WHEN item.isSold = true THEN item.price END) as avgSalePrice',
+          'SUM(item.viewCount) as totalViews'
+        ])
+        .where('seller.id IS NOT NULL')
+        .groupBy('seller.id, seller.fullName, seller.email, seller.role, seller.createdAt')
+        .orderBy('totalProfit', 'DESC')
+        .offset(offset)
+        .limit(limit)
+        .getRawMany();
+
+      // Get all sellers for summary statistics (without pagination)
+      const allSellersData = await this.itemRepository
+        .createQueryBuilder('item')
+        .leftJoin('item.seller', 'seller')
+        .select([
+          'seller.id as sellerId',
+          'COUNT(item.id) as totalItems',
+          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
+          'SUM(CASE WHEN item.isSold = true THEN item.price ELSE 0 END) as totalProfit'
+        ])
+        .where('seller.id IS NOT NULL')
+        .groupBy('seller.id')
+        .getRawMany();
+
+      // Get top performing sellers by profit (for the top sellers section)
+      const topSellersByProfit = await this.itemRepository
+        .createQueryBuilder('item')
+        .leftJoin('item.seller', 'seller')
+        .select([
+          'seller.id as sellerId',
+          'seller.fullName as sellerName',
+          'seller.email as sellerEmail',
+          'COUNT(item.id) as totalItems',
+          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
+          'SUM(CASE WHEN item.isSold = true THEN item.price ELSE 0 END) as totalProfit',
+          'AVG(CASE WHEN item.isSold = true THEN item.price END) as avgSalePrice',
+          'SUM(item.viewCount) as totalViews'
+        ])
+        .where('seller.id IS NOT NULL')
+        .groupBy('seller.id, seller.fullName, seller.email')
+        .orderBy('totalProfit', 'DESC')
+        .limit(10)
+        .getRawMany();
+
+      // Calculate summary statistics
+      const totalProfit = allSellersData.reduce((sum, seller) => 
+        sum + parseFloat(seller.totalProfit || '0'), 0);
+      
+      const totalSoldItems = allSellersData.reduce((sum, seller) => 
+        sum + parseInt(seller.soldItems || '0'), 0);
+
+      const activeSellerCount = allSellersData.filter(s => parseInt(s.soldItems || '0') > 0).length;
+      const totalSellerCount = allSellersData.length;
+
+      // Format paginated sellers data
+      const paginatedSellers = sellersData.map(seller => ({
+        id: seller.sellerId,
+        fullName: seller.sellerName,
+        email: seller.sellerEmail,
+        role: seller.sellerRole,
+        joinedDate: seller.joinedDate,
+        totalItems: parseInt(seller.totalItems || '0'),
+        soldItems: parseInt(seller.soldItems || '0'),
+        totalProfit: parseFloat(seller.totalProfit || '0'),
+        avgSalePrice: parseFloat(seller.avgSalePrice || '0'),
+        totalViews: parseInt(seller.totalViews || '0'),
+        conversionRate: parseInt(seller.totalItems) > 0 ? 
+          ((parseInt(seller.soldItems) / parseInt(seller.totalItems)) * 100).toFixed(1) : '0'
+      }));
+
+      // Format top sellers data
+      const formattedTopSellers = topSellersByProfit.map(seller => ({
+        id: seller.sellerId,
+        fullName: seller.sellerName,
+        email: seller.sellerEmail,
+        totalItems: parseInt(seller.totalItems || '0'),
+        soldItems: parseInt(seller.soldItems || '0'),
+        totalProfit: parseFloat(seller.totalProfit || '0'),
+        avgSalePrice: parseFloat(seller.avgSalePrice || '0'),
+        totalViews: parseInt(seller.totalViews || '0'),
+        conversionRate: parseInt(seller.totalItems) > 0 ? 
+          ((parseInt(seller.soldItems) / parseInt(seller.totalItems)) * 100).toFixed(1) : '0'
+      }));
+
+      return {
+        topSellersByProfit: formattedTopSellers,
+        sellersSummary: {
+          totalSellers: totalSellerCount,
+          activeSellers: activeSellerCount,
+          totalPlatformProfit: totalProfit.toFixed(2),
+          totalItemsSold: totalSoldItems,
+          averageProfitPerSeller: totalSellerCount > 0 ? 
+            (totalProfit / totalSellerCount).toFixed(2) : '0'
+        },
+        allSellers: paginatedSellers,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalSellers / limit),
+          totalSellers: totalSellers,
+          hasNextPage: page < Math.ceil(totalSellers / limit),
+          hasPreviousPage: page > 1
+        }
+      };
+    } catch (error) {
+      console.error('Error in getSellerAnalytics:', error);
+      throw new Error('Failed to get seller analytics');
+    }
+  }
+
   async getAllUsers(page: number = 1, limit: number = 10, search?: string, role?: UserRole, status?: UserStatus): Promise<{ users: AdminUserResponse[]; total: number }> {
     const query = this.userRepository.createQueryBuilder('user')
       .leftJoinAndSelect('user.items', 'items')

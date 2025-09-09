@@ -43,6 +43,34 @@ export class AdminController {
     return this.adminService.getDashboardStats();
   }
 
+  @Get('analytics/overview')
+  async getAnalyticsOverview() {
+    return this.adminService.getAnalyticsOverview();
+  }
+
+  @Get('analytics/user-growth')
+  async getUserGrowthAnalytics(@Query('days') days: number = 30) {
+    return this.adminService.getUserGrowthAnalytics(days);
+  }
+
+  @Get('analytics/revenue')
+  async getRevenueAnalytics(@Query('days') days: number = 30) {
+    return this.adminService.getRevenueAnalytics(days);
+  }
+
+  @Get('analytics/item-performance')
+  async getItemPerformanceAnalytics() {
+    return this.adminService.getItemPerformanceAnalytics();
+  }
+
+  @Get('analytics/sellers')
+  async getSellerAnalytics(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.adminService.getSellerAnalytics(page, limit);
+  }
+
   @Get('users')
   async getAllUsers(
     @Query('page') page: number = 1,

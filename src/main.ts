@@ -26,6 +26,7 @@ async function bootstrap() {
   const allowedOrigins = [
     'http://localhost:3000', // Default frontend port (marketplace)
     'http://localhost:3002', // Alternative frontend port (admin panel)
+    'http://localhost:3003', // Admin panel (dev port)
   ];
 
   // Add production frontend URLs from environment variables
@@ -63,4 +64,4 @@ async function bootstrap() {
   console.log(`Swagger documentation: http://localhost:${port}/api`);
 }
 
-bootstrap();// Deployment test
+bootstrap();
