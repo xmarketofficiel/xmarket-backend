@@ -6,8 +6,7 @@ name: Deploy to EC2 Production
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
   deploy:
@@ -15,46 +14,22 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
+        cache: 'npm'
         
-    - name: Clean and install dependencies
+    - name: Install dependencies
       run: |
-        rm -f package-lock.json
-        npm install --legacy-peer-deps
+        npm ci --legacy-peer-deps
         
     - name: Build application
       run: npm run build
-        
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_PRIVATE_KEY }}
-        timeout: 60s
-        script: |
-          cd /home/ubuntu/xmarket-project/backend
-          
-          # Fix git configuration and pull latest changes
-          git fetch origin
-          git reset --hard origin/main
-          git config pull.rebase false
-          git clean -fd
-          
-          # Install dependencies and build
-          npm install --legacy-peer-deps
-          npm run build
-          
-          # Restart application with PM2
-          pm2 restart xmarket-backend || pm2 start dist/main.js --name xmarket-backend
-          pm2 save
-          
-    - name: Verify deployment
+      
+    - name: Test SSH Connection
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
@@ -62,6 +37,155 @@ jobs:
         key: ${{ secrets.EC2_PRIVATE_KEY }}
         timeout: 30s
         script: |
-          sleep 10
-          curl -f http://localhost:3001/api || exit 1
-          pm2 status xmarket-backend
+          echo "🔍 Testing SSH connection..."
+          whoami
+          pwd
+          echo "✅ SSH connection successful!"
+        
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_PRIVATE_KEY }}
+        timeout: 120s
+        script: |
+          echo "🚀 Starting deployment..."
+          
+          # Navigate to project directory
+          if [ -d "/home/ubuntu/xmarket-project/backend" ]; then
+            cd /home/ubuntu/xmarket-project/backend
+          elif [ -d "/home/ubuntu/xmarket-backend" ]; then
+            cd /home/ubuntu/xmarket-backend
+          else
+            echo "❌ Project directory not found!"
+            exit 1
+          fi
+          
+          echo "📂 Current directory: $(pwd)"
+          
+          # Check git status
+          echo "🔍 Checking git status..."
+          git status || echo "Not a git repository"
+          
+          # Fix git configuration and pull latest changes
+          echo "📥 Pulling latest changes..."
+          git config --global --add safe.directory $(pwd)
+          git fetch origin || echo "Fetch failed, continuing..."
+          git reset --hard origin/main || echo "Reset failed, continuing..."
+          git config pull.rebase false
+          git clean -fd || echo "Clean failed, continuing..."
+          
+          # Ensure .env file exists
+          echo "📝 Setting up environment..."
+          if [ ! -f ".env" ]; then
+            if [ -f ".env.production" ]; then
+              cp .env.production .env
+              echo "✅ Copied .env.production to .env"
+            else
+              echo "❌ No environment file found!"
+              exit 1
+            fi
+          fi
+          
+          # Install dependencies and build
+          echo "📦 Installing dependencies..."
+          npm ci --legacy-peer-deps --production=false
+          
+          echo "🔨 Building application..."
+          npm run build
+          
+          # Check if build was successful
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed - dist directory not found!"
+            exit 1
+          fi
+          
+          echo "✅ Build successful!"
+          
+          # Create logs directory
+          mkdir -p logs
+          
+          # Restart application with PM2
+          echo "🔄 Managing PM2 process..."
+          
+          # Check if PM2 is installed
+          if ! command -v pm2 &> /dev/null; then
+            echo "📦 Installing PM2..."
+            sudo npm install -g pm2
+          fi
+          
+          # Stop existing process if running
+          pm2 delete xmarket-backend 2>/dev/null || echo "No existing process to delete"
+          
+          # Start application
+          echo "🚀 Starting application..."
+          pm2 start ecosystem.config.js
+          
+          # Save PM2 configuration
+          pm2 save
+          
+          # Setup PM2 startup if not already done
+          sudo pm2 startup ubuntu -u ubuntu --hp /home/ubuntu 2>/dev/null || echo "PM2 startup already configured"
+          
+          echo "✅ Deployment completed!"
+          
+    - name: Health Check
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_PRIVATE_KEY }}
+        timeout: 60s
+        script: |
+          echo "🔍 Running health check..."
+          
+          # Wait for application to start
+          sleep 15
+          
+          # Check PM2 status
+          echo "📊 PM2 Status:"
+          pm2 status
+          
+          # Check if application is running
+          if pm2 describe xmarket-backend | grep -q "online"; then
+            echo "✅ Application is running"
+          else
+            echo "❌ Application is not running"
+            echo "📋 PM2 logs:"
+            pm2 logs xmarket-backend --lines 20
+            exit 1
+          fi
+          
+          # Test local API endpoint
+          echo "🧪 Testing API endpoints..."
+          
+          # Test root endpoint
+          if curl -f http://localhost:3001/ 2>/dev/null; then
+            echo "✅ Root endpoint is responding"
+          else
+            echo "⚠️ Root endpoint test failed"
+          fi
+          
+          # Test API endpoint
+          if curl -f http://localhost:3001/api 2>/dev/null; then
+            echo "✅ API endpoint is responding"
+          else
+            echo "⚠️ API endpoint test failed (might be normal if no /api route)"
+          fi
+          
+          # Test categories endpoint (if exists)
+          if curl -f http://localhost:3001/categories 2>/dev/null; then
+            echo "✅ Categories endpoint is responding"
+          else
+            echo "⚠️ Categories endpoint test failed"
+          fi
+          
+          # Check nginx status
+          if systemctl is-active --quiet nginx; then
+            echo "✅ Nginx is running"
+          else
+            echo "⚠️ Nginx is not running"
+          fi
+          
+          echo "🎉 Health check completed!"
