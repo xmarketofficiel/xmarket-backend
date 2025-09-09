@@ -301,8 +301,18 @@ export class AdminService {
 
   async getSellerAnalytics(page: number = 1, limit: number = 10) {
     try {
+      // Ensure parameters are numbers and provide defaults
+      let pageNum = Number(page) || 1;
+      let limitNum = Number(limit) || 10;
+      
+      // Validate pagination parameters
+      if (pageNum < 1) pageNum = 1;
+      if (limitNum < 1 || limitNum > 100) limitNum = 10;
+      
       // Calculate offset for pagination
-      const offset = (page - 1) * limit;
+      const offset = (pageNum - 1) * limitNum;
+      
+      console.log('📊 Pagination params:', { page: pageNum, limit: limitNum, offset });
 
       // Get total count for pagination
       const totalCountQuery = await this.itemRepository
@@ -320,21 +330,21 @@ export class AdminService {
         .leftJoin('item.seller', 'seller')
         .select([
           'seller.id as sellerId',
-          'seller.fullName as sellerName',
+          'seller.full_name as sellerName',
           'seller.email as sellerEmail', 
           'seller.role as sellerRole',
-          'seller.createdAt as joinedDate',
+          'seller.created_at as joinedDate',
           'COUNT(item.id) as totalItems',
-          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
-          'SUM(CASE WHEN item.isSold = true THEN item.price ELSE 0 END) as totalProfit',
-          'AVG(CASE WHEN item.isSold = true THEN item.price END) as avgSalePrice',
-          'SUM(item.viewCount) as totalViews'
+          'COUNT(CASE WHEN item.is_sold = true THEN 1 END) as soldItems',
+          'COALESCE(SUM(CASE WHEN item.is_sold = true THEN item.price ELSE 0 END), 0) as totalProfit',
+          'AVG(CASE WHEN item.is_sold = true THEN item.price END) as avgSalePrice',
+          'COALESCE(SUM(item.view_count), 0) as totalViews'
         ])
         .where('seller.id IS NOT NULL')
-        .groupBy('seller.id, seller.fullName, seller.email, seller.role, seller.createdAt')
+        .groupBy('seller.id, seller.full_name, seller.email, seller.role, seller.created_at')
         .orderBy('totalProfit', 'DESC')
         .offset(offset)
-        .limit(limit)
+        .limit(limitNum)
         .getRawMany();
 
       // Get all sellers for summary statistics (without pagination)
@@ -344,72 +354,79 @@ export class AdminService {
         .select([
           'seller.id as sellerId',
           'COUNT(item.id) as totalItems',
-          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
-          'SUM(CASE WHEN item.isSold = true THEN item.price ELSE 0 END) as totalProfit'
+          'COUNT(CASE WHEN item.is_sold = true THEN 1 END) as soldItems',
+          'COALESCE(SUM(CASE WHEN item.is_sold = true THEN item.price ELSE 0 END), 0) as totalProfit'
         ])
         .where('seller.id IS NOT NULL')
         .groupBy('seller.id')
         .getRawMany();
 
       // Get top performing sellers by profit (for the top sellers section)
+      // Updated to include ALL sellers with items, not just those with sales
       const topSellersByProfit = await this.itemRepository
         .createQueryBuilder('item')
         .leftJoin('item.seller', 'seller')
         .select([
           'seller.id as sellerId',
-          'seller.fullName as sellerName',
+          'seller.full_name as sellerName', 
           'seller.email as sellerEmail',
           'COUNT(item.id) as totalItems',
-          'COUNT(CASE WHEN item.isSold = true THEN 1 END) as soldItems',
-          'SUM(CASE WHEN item.isSold = true THEN item.price ELSE 0 END) as totalProfit',
-          'AVG(CASE WHEN item.isSold = true THEN item.price END) as avgSalePrice',
-          'SUM(item.viewCount) as totalViews'
+          'COUNT(CASE WHEN item.is_sold = true THEN 1 END) as soldItems',
+          'COALESCE(SUM(CASE WHEN item.is_sold = true THEN item.price ELSE 0 END), 0) as totalProfit',
+          'AVG(CASE WHEN item.is_sold = true THEN item.price END) as avgSalePrice',
+          'COALESCE(SUM(item.view_count), 0) as totalViews'
         ])
         .where('seller.id IS NOT NULL')
-        .groupBy('seller.id, seller.fullName, seller.email')
+        .groupBy('seller.id, seller.full_name, seller.email')
         .orderBy('totalProfit', 'DESC')
+        .addOrderBy('totalItems', 'DESC') // Secondary sort by total items
+        .addOrderBy('seller.full_name', 'ASC') // Tertiary sort by name for consistency
         .limit(10)
         .getRawMany();
 
       // Calculate summary statistics
       const totalProfit = allSellersData.reduce((sum, seller) => 
-        sum + parseFloat(seller.totalProfit || '0'), 0);
+        sum + parseFloat(seller.totalprofit || '0'), 0);
       
       const totalSoldItems = allSellersData.reduce((sum, seller) => 
-        sum + parseInt(seller.soldItems || '0'), 0);
+        sum + parseInt(seller.solditems || '0'), 0);
 
-      const activeSellerCount = allSellersData.filter(s => parseInt(s.soldItems || '0') > 0).length;
+      const activeSellerCount = allSellersData.filter(s => parseInt(s.solditems || '0') > 0).length;
       const totalSellerCount = allSellersData.length;
 
       // Format paginated sellers data
       const paginatedSellers = sellersData.map(seller => ({
-        id: seller.sellerId,
-        fullName: seller.sellerName,
-        email: seller.sellerEmail,
-        role: seller.sellerRole,
-        joinedDate: seller.joinedDate,
-        totalItems: parseInt(seller.totalItems || '0'),
-        soldItems: parseInt(seller.soldItems || '0'),
-        totalProfit: parseFloat(seller.totalProfit || '0'),
-        avgSalePrice: parseFloat(seller.avgSalePrice || '0'),
-        totalViews: parseInt(seller.totalViews || '0'),
-        conversionRate: parseInt(seller.totalItems) > 0 ? 
-          ((parseInt(seller.soldItems) / parseInt(seller.totalItems)) * 100).toFixed(1) : '0'
+        id: seller.sellerid,
+        fullName: seller.sellername,
+        email: seller.selleremail,
+        role: seller.sellerrole,
+        joinedDate: seller.joineddate,
+        totalItems: parseInt(seller.totalitems || '0'),
+        soldItems: parseInt(seller.solditems || '0'),
+        totalProfit: parseFloat(seller.totalprofit || '0'),
+        avgSalePrice: parseFloat(seller.avgsaleprice || '0'),
+        totalViews: parseInt(seller.totalviews || '0'),
+        conversionRate: parseInt(seller.totalitems) > 0 ? 
+          ((parseInt(seller.solditems) / parseInt(seller.totalitems)) * 100).toFixed(1) : '0'
       }));
 
       // Format top sellers data
       const formattedTopSellers = topSellersByProfit.map(seller => ({
-        id: seller.sellerId,
-        fullName: seller.sellerName,
-        email: seller.sellerEmail,
-        totalItems: parseInt(seller.totalItems || '0'),
-        soldItems: parseInt(seller.soldItems || '0'),
-        totalProfit: parseFloat(seller.totalProfit || '0'),
-        avgSalePrice: parseFloat(seller.avgSalePrice || '0'),
-        totalViews: parseInt(seller.totalViews || '0'),
-        conversionRate: parseInt(seller.totalItems) > 0 ? 
-          ((parseInt(seller.soldItems) / parseInt(seller.totalItems)) * 100).toFixed(1) : '0'
+        id: seller.sellerid,
+        fullName: seller.sellername,
+        email: seller.selleremail,
+        totalItems: parseInt(seller.totalitems || '0'),
+        soldItems: parseInt(seller.solditems || '0'),
+        totalProfit: parseFloat(seller.totalprofit || '0'),
+        avgSalePrice: parseFloat(seller.avgsaleprice || '0'),
+        totalViews: parseInt(seller.totalviews || '0'),
+        conversionRate: parseInt(seller.totalitems) > 0 ? 
+          ((parseInt(seller.solditems) / parseInt(seller.totalitems)) * 100).toFixed(1) : '0'
       }));
+
+      // Debug logging
+      console.log('🔍 Raw topSellersByProfit query result:', topSellersByProfit.slice(0, 2));
+      console.log('📊 Formatted top sellers:', formattedTopSellers.slice(0, 2));
 
       return {
         topSellersByProfit: formattedTopSellers,
@@ -423,11 +440,11 @@ export class AdminService {
         },
         allSellers: paginatedSellers,
         pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(totalSellers / limit),
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalSellers / limitNum),
           totalSellers: totalSellers,
-          hasNextPage: page < Math.ceil(totalSellers / limit),
-          hasPreviousPage: page > 1
+          hasNextPage: pageNum < Math.ceil(totalSellers / limitNum),
+          hasPreviousPage: pageNum > 1
         }
       };
     } catch (error) {

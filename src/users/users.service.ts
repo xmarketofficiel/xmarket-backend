@@ -260,8 +260,7 @@ export class UsersService {
           'totalRatings',
           'createdAt',
           'showSoldItems',
-          'showPurchases',
-          'showPhone'
+          'showPurchases'
         ]
       });
 
@@ -283,14 +282,14 @@ export class UsersService {
       // Respect privacy settings
       const showSoldItems = user.showSoldItems !== false; // Default to true if not set
       const showPurchases = user.showPurchases !== false; // Default to true if not set
-      const showPhone = user.showPhone === true; // Default to false if not set
+      // Phone numbers are never shown in public profiles for privacy
 
       // Filter user data based on privacy settings
       const publicUser = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        whatsappNumber: showPhone ? user.whatsappNumber : undefined,
+        whatsappNumber: undefined, // Never show phone numbers in public profiles
         role: user.role,
         status: user.status,
         isVerified: user.isVerified,
