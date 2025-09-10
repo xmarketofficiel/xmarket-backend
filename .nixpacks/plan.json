@@ -1,8 +1,0 @@
-{
-  "providers": ["node"],
-  "buildCommand": "npm install && npm run build",
-  "startCommand": "npm run start:prod",
-  "staticAssets": {
-    "uploads": "uploads"
-  }
-}

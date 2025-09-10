@@ -5,6 +5,10 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": "20.x",
+    "npm": "9.x"
+  },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "build:nest": "nest build",
