@@ -11,13 +11,11 @@ async function createAdminUser() {
   const usersService = app.get(UsersService);
 
   const adminUser: CreateUserDto = {
-    firstName: 'Admin',
-    lastName: 'User',
-    email: 'admin@xmarket.com',
+    fullName: 'Admin User',
+    email: 'admin@university.edu',
+    whatsappNumber: '+1234567890',
     password: 'AdminPassword123!',
-    universityEmail: 'admin@university.edu',
-    universityId: 'ADMIN001',
-    isEmailVerified: true,
+    isVerified: true,
   };
 
   try {
