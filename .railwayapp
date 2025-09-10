@@ -1,8 +1,0 @@
-# Railway Configuration
-# Force Railway to use Nixpacks instead of Docker
-
-[build]
-builder = "nixpacks"
-
-[deploy]
-startCommand = "npm run start:prod"
