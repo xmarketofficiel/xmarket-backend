@@ -56,6 +56,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
+      domain: undefined ,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
@@ -63,6 +64,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
+      domain: undefined ,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -87,6 +89,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
+      domain: undefined ,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
@@ -94,6 +97,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
+      domain: undefined ,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
