@@ -10,7 +10,7 @@
     "npm": "9.x"
   },
   "scripts": {
-    "build": "nest build",
+    "build": "tsc -p tsconfig.json",
     "build:nest": "nest build",
     "build:tsc": "rm -rf dist && tsc -p tsconfig.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
