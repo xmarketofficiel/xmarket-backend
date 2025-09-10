@@ -51,18 +51,18 @@ export class AuthController {
     console.log("hello")
     const result = await this.authService.completeRegistration(completeRegistrationDto);
     
-    // Set cookies
-    response.cookie('access_token', result.access_token, {
+    // Set cookies with more permissive sameSite for cross-origin requests
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax' as const, // Changed from 'strict' to 'lax' for cross-origin support
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    };
+
+    response.cookie('access_token', result.access_token, cookieOptions);
 
     response.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -82,18 +82,18 @@ export class AuthController {
   ) {
     const result = await this.authService.login(loginDto);
     
-    // Set cookies
-    response.cookie('access_token', result.access_token, {
+    // Set cookies with more permissive sameSite for cross-origin requests
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax' as const, // Changed from 'strict' to 'lax' for cross-origin support
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    };
+
+    response.cookie('access_token', result.access_token, cookieOptions);
 
     response.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
