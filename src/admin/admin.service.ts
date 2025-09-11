@@ -937,6 +937,7 @@ export class AdminService {
         itemReports = itemReportsRaw.map(raw => ({
           id: raw.id,
           reason: raw.reason,
+          description: raw.description,
           status: raw.status,
           adminNotes: raw.adminNotes,
           createdAt: raw.createdAt,
@@ -986,6 +987,7 @@ export class AdminService {
             id: report.id,
             type: 'item' as const,
             reason: report.reason,
+            description: report.description,
             status: report.status,
             reportedBy: {
               id: report.reporter?.id || 0,

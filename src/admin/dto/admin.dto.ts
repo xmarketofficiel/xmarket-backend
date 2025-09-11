@@ -55,6 +55,7 @@ export interface AdminReportResponse {
   id: string; // Changed to string since reports use UUID
   type: 'user' | 'item';
   reason: string;
+  description?: string;
   status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
   reportedBy: {
     id: number;

@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseInterceptors, UploadedFiles, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseInterceptors, UploadedFiles, BadRequestException, UseGuards, Res } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { ItemsService } from './items.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { SearchItemsDto } from './dto/search-items.dto';
+import { ReportItemDto } from './dto/report-item.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { User } from '../users/entities/user.entity';
@@ -90,7 +91,10 @@ export class ItemsController {
     @Body() updateItemDto: UpdateItemDto,
     @CurrentUser() user: User,
   ) {
-    return this.itemsService.update(id, updateItemDto, user.id);
+    const result = await this.itemsService.update(id, updateItemDto, user.id);
+    
+    // Return the full result including warning information
+    return result;
   }
 
   @Delete(':id')
@@ -185,10 +189,10 @@ export class ItemsController {
   @ApiResponse({ status: 200, description: 'Item reported successfully' })
   async reportItem(
     @Param('id', ParseIntPipe) id: number,
-    @Body('reason') reason: string,
+    @Body() reportItemDto: ReportItemDto,
     @CurrentUser() user: User,
   ) {
-    await this.itemsService.reportItem(id, user.id, reason);
+    await this.itemsService.reportItem(id, user.id, reportItemDto.reason, reportItemDto.description);
     return { success: true, message: 'Item reported successfully' };
   }
 

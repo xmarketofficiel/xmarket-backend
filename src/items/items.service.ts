@@ -136,7 +136,7 @@ export class ItemsService {
     return item;
   }
 
-  async update(id: number, updateItemDto: UpdateItemDto, userId: number): Promise<Item> {
+  async update(id: number, updateItemDto: UpdateItemDto, userId: number): Promise<any> {
     const item = await this.findOne(id);
     
     // Protection 1: Only owner can edit
@@ -149,16 +149,48 @@ export class ItemsService {
       throw new BadRequestException('Cannot edit sold items');
     }
 
-    // Protection 3: Cannot edit items with confirmed purchases
-    const confirmedPurchases = await this.itemPurchasesRepository.find({
+    // Protection 3: Check for PENDING purchases (these should block edits)
+    const pendingPurchases = await this.itemPurchasesRepository.find({
       where: { 
         itemId: id, 
-        status: In([PurchaseStatus.CONFIRMED, PurchaseStatus.BUYER_CONFIRMED, PurchaseStatus.COMPLETED])
+        status: PurchaseStatus.PENDING
       }
     });
 
-    if (confirmedPurchases.length > 0) {
-      throw new BadRequestException('Cannot edit items with confirmed purchase requests. Please contact buyers first.');
+    // Only block for PENDING purchases (active negotiations)
+    if (pendingPurchases.length > 0) {
+      // Block quantity decrease below pending amount
+      if (updateItemDto.quantity !== undefined && updateItemDto.quantity < pendingPurchases.length) {
+        throw new BadRequestException(`Cannot reduce quantity below ${pendingPurchases.length}. You have ${pendingPurchases.length} pending purchase negotiations.`);
+      }
+    }
+
+    // Check for confirmed purchases (for warnings, not blocking)
+    const confirmedPurchases = await this.itemPurchasesRepository.find({
+      where: { 
+        itemId: id, 
+        status: In([PurchaseStatus.CONFIRMED, PurchaseStatus.BUYER_CONFIRMED])
+      }
+    });
+
+    // Check if there are actual meaningful changes
+    const hasChanges = (
+      (updateItemDto.title && updateItemDto.title.trim() !== item.title) ||
+      (updateItemDto.description && updateItemDto.description.trim() !== item.description) ||
+      (updateItemDto.price !== undefined && Math.abs(updateItemDto.price - item.price) > 0.01) ||
+      (updateItemDto.quantity !== undefined && updateItemDto.quantity !== item.quantity) ||
+      (updateItemDto.condition && updateItemDto.condition !== item.condition) ||
+      (updateItemDto.category && updateItemDto.category !== item.category)
+    );
+
+    // Store warning info for response headers (only if there are changes AND confirmed purchases)
+    let warningInfo = null;
+    if (confirmedPurchases.length > 0 && hasChanges) {
+      warningInfo = {
+        confirmedBuyers: confirmedPurchases.length,
+        agreedPrice: item.price,
+        hasConfirmedPurchases: true
+      };
     }
 
     // Protection 4: Validate price changes don't affect pending purchases
@@ -176,20 +208,9 @@ export class ItemsService {
       }
     }
 
-    // Apply updates with validation
+    // Apply updates with validation (this logic is now handled above)
     const updatedFields = { ...updateItemDto };
     
-    // Protect certain fields from being changed inappropriately
-    if (updatedFields.quantity && updatedFields.quantity < item.quantity) {
-      const pendingCount = await this.itemPurchasesRepository.count({
-        where: { itemId: id, status: In([PurchaseStatus.PENDING, PurchaseStatus.BUYER_CONFIRMED, PurchaseStatus.CONFIRMED]) }
-      });
-      
-      if (updatedFields.quantity < pendingCount) {
-        throw new BadRequestException(`Cannot reduce quantity below ${pendingCount}. You have ${pendingCount} pending purchase requests.`);
-      }
-    }
-
     // Apply updates
     Object.assign(item, updatedFields);
     
@@ -210,7 +231,12 @@ export class ItemsService {
       }
     }
 
-    return updatedItem;
+    // Return item with warning info if confirmed purchases exist
+    return { 
+      item: updatedItem, 
+      warning: warningInfo,
+      hasConfirmedPurchases: !!warningInfo
+    };
   }
 
   async remove(id: number, userId: number): Promise<void> {
@@ -220,10 +246,28 @@ export class ItemsService {
       throw new ForbiddenException('You can only delete your own items');
     }
 
-    // First, remove all associated images from Cloudinary and database
-    await this.removeAllItemImages(id);
+    try {
+      // Clean up all related data before deleting the item
+      
+      // 1. Remove all associated images from Cloudinary and database
+      await this.removeAllItemImages(id);
 
-    await this.itemsRepository.remove(item);
+      // 2. Remove all favorites
+      await this.itemFavoritesRepository.delete({ item: { id } });
+
+      // 3. Remove all reports
+      await this.itemReportsRepository.delete({ item: { id } });
+
+      // 4. Remove all purchase interests/expressions
+      await this.itemPurchasesRepository.delete({ itemId: id });
+
+      // 5. Finally, remove the item itself using delete instead of remove
+      await this.itemsRepository.delete({ id });
+      
+    } catch (error) {
+      console.error('Error during item deletion:', error);
+      throw new InternalServerErrorException('Failed to delete item and its related data');
+    }
   }
 
   async addImages(itemId: number, imageUrls: string[], userId: number): Promise<ItemImage[]> {
@@ -522,7 +566,7 @@ export class ItemsService {
   }
 
   // Report functionality
-  async reportItem(itemId: number, userId: number, reason: string): Promise<void> {
+  async reportItem(itemId: number, userId: number, reason: string, description?: string): Promise<void> {
     const user = { id: userId } as User;
     const item = await this.itemsRepository.findOne({ where: { id: itemId } });
     
@@ -539,10 +583,12 @@ export class ItemsService {
       throw new ForbiddenException('You have already reported this item');
     }
 
+    // Use the provided reason and description directly
     const report = this.itemReportsRepository.create({
       reporter: user,
       item,
-      reason,
+      reason: reason.trim(),
+      description: description?.trim() || null,
     });
 
     await this.itemReportsRepository.save(report);
