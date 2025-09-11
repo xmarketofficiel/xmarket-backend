@@ -22,8 +22,21 @@ export class CreateItemDto {
   @ApiProperty({ example: 899.99, description: 'Item price' })
   @IsNumber()
   @Min(0.01)
-  @Max(999999.99)
+  @Max(100000)
   price: number;
+
+  @ApiProperty({ example: 1200.00, description: 'Maximum acceptable price (for negotiation)', required: false })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  @Max(100000)
+  maxPrice?: number;
+
+  @ApiProperty({ example: 1, description: 'Available quantity' })
+  @IsNumber()
+  @Min(1)
+  @Max(1000)
+  quantity: number;
 
   @ApiProperty({ example: 'Electronics', description: 'Item category' })
   @IsString()

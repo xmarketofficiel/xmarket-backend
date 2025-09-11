@@ -17,8 +17,14 @@ export class Item {
   @Column('text')
   description: string;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 8, scale: 2 })
   price: number;
+
+  @Column('decimal', { precision: 8, scale: 2, nullable: true })
+  maxPrice: number;
+
+  @Column({ default: 1 })
+  quantity: number;
 
   @Column()
   category: string;

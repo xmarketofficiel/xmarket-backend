@@ -28,7 +28,7 @@ import {
   AdminReportResponse,
   CreateAdminDto,
   CreateUserDto,
-  CreateItemDto,
+  CreateItemDto as AdminCreateItemDto,
   UpdateUserStatusDto,
   BulkActionDto,
 } from './dto/admin.dto';
@@ -177,7 +177,7 @@ export class AdminController {
   }
 
   @Post('items')
-  async createItem(@Body() createItemDto: CreateItemDto, @CurrentUser() currentAdmin: User): Promise<AdminItemResponse> {
+  async createItem(@Body() createItemDto: AdminCreateItemDto, @CurrentUser() currentAdmin: User): Promise<AdminItemResponse> {
     return this.adminService.createItem(createItemDto, currentAdmin.id);
   }
 

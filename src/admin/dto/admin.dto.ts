@@ -100,6 +100,7 @@ export interface CreateItemDto {
   price: number;
   category: string;
   condition: 'New' | 'Like New' | 'Good' | 'Fair';
+  quantity?: number; // Optional - defaults to 1
   sellerId?: number; // Optional - admin can create items for specific users
 }
 

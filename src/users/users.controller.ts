@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from './entities/user.entity';
 
@@ -27,6 +28,27 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<User> {
     return this.usersService.update(user.id, updateUserDto);
+  }
+
+  @Patch('change-password')
+  @ApiOperation({ summary: 'Change user password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Current password is incorrect' })
+  async changePassword(
+    @CurrentUser() user: User,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    if (changePasswordDto.newPassword !== changePasswordDto.confirmPassword) {
+      throw new BadRequestException('New password and confirm password do not match');
+    }
+    
+    await this.usersService.changePassword(
+      user.id, 
+      changePasswordDto.currentPassword, 
+      changePasswordDto.newPassword
+    );
+    
+    return { message: 'Password changed successfully' };
   }
 
   @Post('upload-avatar')

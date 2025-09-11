@@ -322,4 +322,62 @@ export class ItemsController {
       data: pendingSales
     };
   }
+
+  @Get('sales/my-listings')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get seller items with quantity information' })
+  @ApiResponse({ status: 200, description: 'Seller items retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
+  async getMyListings(
+    @CurrentUser() user: User,
+    @Query('page') pageParam?: string,
+    @Query('limit') limitParam?: string,
+  ) {
+    // Safe parsing with defaults
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
+    const limit = limitParam ? Math.min(100, Math.max(1, parseInt(limitParam, 10) || 20)) : 20;
+
+    // Validation
+    if (isNaN(page) || page < 1) {
+      throw new BadRequestException('Page number must be a positive integer');
+    }
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be between 1 and 100');
+    }
+
+    const result = await this.itemsService.getSellerItems(user.id, page, limit);
+    return {
+      success: true,
+      data: result
+    };
+  }
+
+  @Get('sales/my-editable')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get seller items that can be edited' })
+  @ApiResponse({ status: 200, description: 'Editable items retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
+  async getMyEditableItems(
+    @CurrentUser() user: User,
+    @Query('page') pageParam?: string,
+    @Query('limit') limitParam?: string,
+  ) {
+    // Safe parsing with defaults
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
+    const limit = limitParam ? Math.min(100, Math.max(1, parseInt(limitParam, 10) || 20)) : 20;
+
+    // Validation
+    if (isNaN(page) || page < 1) {
+      throw new BadRequestException('Page number must be a positive integer');
+    }
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be between 1 and 100');
+    }
+
+    const result = await this.itemsService.getEditableItems(user.id, page, limit);
+    return {
+      success: true,
+      data: result
+    };
+  }
 }

@@ -17,10 +17,11 @@ import {
   AdminReportResponse,
   CreateAdminDto,
   CreateUserDto,
-  CreateItemDto,
   UpdateUserStatusDto,
   BulkActionDto
 } from './dto/admin.dto';
+import { CreateItemDto as ItemsCreateItemDto } from '../items/dto/create-item.dto';
+import { CreateItemDto as AdminCreateItemDto } from './dto/admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -742,7 +743,7 @@ export class AdminService {
     return this.getUserById(savedUser.id);
   }
 
-  async createItem(createItemDto: CreateItemDto, adminUserId: number): Promise<AdminItemResponse> {
+  async createItem(createItemDto: AdminCreateItemDto, adminUserId: number): Promise<AdminItemResponse> {
     // If sellerId is provided, use it; otherwise, assign to the admin creating it
     const sellerId = createItemDto.sellerId || adminUserId;
     
@@ -753,13 +754,15 @@ export class AdminService {
     }
 
     // Use the ItemsService to create the item with proper validation
-    const createdItem = await this.itemsService.create({
+    const itemsDto: ItemsCreateItemDto = {
       title: createItemDto.title,
       description: createItemDto.description,
       price: createItemDto.price,
       category: createItemDto.category,
       condition: createItemDto.condition as any,
-    }, sellerId);
+      quantity: createItemDto.quantity || 1,
+    };
+    const createdItem = await this.itemsService.create(itemsDto, sellerId);
 
     // Convert to AdminItemResponse format
     const item = await this.itemRepository.findOne({

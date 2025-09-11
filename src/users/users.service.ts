@@ -98,6 +98,33 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
+  async changePassword(id: number, currentPassword: string, newPassword: string): Promise<User> {
+    const user = await this.usersRepository.findOne({ 
+      where: { id },
+      select: ['id', 'email', 'passwordHash', 'fullName'] 
+    });
+    
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Hash new password and update
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = hashedPassword;
+    
+    const updatedUser = await this.usersRepository.save(user);
+    
+    // Return user without password hash
+    const { passwordHash, ...result } = updatedUser;
+    return result as User;
+  }
+
   async remove(id: number): Promise<void> {
     const user = await this.findOne(id);
     await this.usersRepository.remove(user);
