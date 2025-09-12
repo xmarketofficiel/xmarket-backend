@@ -10,6 +10,7 @@ import { UsersModule } from './users/users.module';
 import { ItemsModule } from './items/items.module';
 import { InterestsModule } from './interests/interests.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { StorageModule } from './storage/storage.module';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './otp/otp.module';
 import { ServicesModule } from './services/services.module';
@@ -157,6 +158,7 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
     ItemsModule,
     InterestsModule,
     UploadsModule,
+    StorageModule,
     EmailModule,
     OtpModule,
     ServicesModule,
