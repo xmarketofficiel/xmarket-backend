@@ -269,8 +269,6 @@ export class UsersService {
   // Get user profile with statistics
   async getUserProfile(userId: number) {
     try {
-      console.log(`Getting user profile for userId: ${userId}`);
-      
       // Get user with privacy settings
       const user = await this.usersRepository.findOne({ 
         where: { id: userId },
