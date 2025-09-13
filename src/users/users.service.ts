@@ -9,6 +9,7 @@ import { Item } from '../items/entities/item.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CloudinaryService } from '../common/services/cloudinary.service';
+import { DualImageService } from '../storage/dual-image.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class UsersService {
     @InjectRepository(Item)
     private itemsRepository: Repository<Item>,
     private cloudinaryService: CloudinaryService,
+    private dualImageService: DualImageService,
   ) {}
 
   async create(createUserDto: CreateUserDto & { isVerified?: boolean }): Promise<User> {
@@ -137,6 +139,7 @@ export class UsersService {
   }
 
   async updateProfileImageWithCloudinary(id: number, file: Express.Multer.File): Promise<User> {
+    console.log('🚨 updateProfileImageWithCloudinary called for user:', id);
     const user = await this.findOne(id);
     
     // Validate file input
@@ -163,11 +166,50 @@ export class UsersService {
     }
 
     try {
-      // Upload the avatar to Cloudinary
-      const uploadResult = await this.cloudinaryService.uploadImage(file, `user-avatars/user-${id}`);
+      console.log('🔍 Starting dual storage upload for user:', id);
+      console.log('🔍 File details:', { 
+        originalname: file.originalname, 
+        size: file.buffer.length,
+        mimetype: file.mimetype 
+      });
       
-      // Update user with Cloudinary URL
-      user.profileImageUrl = uploadResult.url;
+      // Use dual storage for profile picture upload
+      const uploadResult = await this.dualImageService.uploadImageToBothServices(
+        file.buffer,
+        id,
+        'avatar',
+        file.originalname
+      );
+      
+      console.log('🔍 Upload result:', {
+        primarySuccess: uploadResult.primary.success,
+        backupSuccess: uploadResult.backup.success,
+        recommendedUrl: uploadResult.recommendedUrl,
+        primaryErrors: uploadResult.primary.errors,
+        backupErrors: uploadResult.backup.errors,
+        spacesUrl: uploadResult.backup.spacesUrl,
+        spacesKey: uploadResult.backup.spacesKey,
+        variantsCount: uploadResult.backup.spacesVariants?.length || 0
+      });
+      
+      // Save all image URLs to user record
+      user.profileImageUrl = uploadResult.recommendedUrl; // Cloudinary URL (primary)
+      
+      // Save DigitalOcean Spaces information for backup/fallback
+      if (uploadResult.backup.success && uploadResult.backup.spacesUrl) {
+        user.profileImageSpacesUrl = uploadResult.backup.spacesUrl;
+        user.profileImageSpacesKey = uploadResult.backup.spacesKey;
+        
+        // Save variant URLs as JSON object
+        if (uploadResult.backup.spacesVariants && uploadResult.backup.spacesVariants.length > 0) {
+          const variants: { [key: string]: string } = {};
+          uploadResult.backup.spacesVariants.forEach(variant => {
+            variants[variant.variant] = variant.spacesUrl;
+          });
+          user.profileImageVariants = variants;
+        }
+      }
+      
       return this.usersRepository.save(user);
     } catch (error) {
       console.error('Avatar upload error:', error);

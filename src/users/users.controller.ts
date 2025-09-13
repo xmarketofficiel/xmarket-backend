@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseIntPipe, BadRequestException, NotFoundException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -70,6 +70,8 @@ export class UsersController {
     @CurrentUser() user: User,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<User> {
+    console.log('🚨 uploadAvatar endpoint called for user:', user.id);
+    console.log('🚨 File received:', file ? { name: file.originalname, size: file.size, mimetype: file.mimetype } : 'No file');
     return this.usersService.updateProfileImageWithCloudinary(user.id, file);
   }
 

@@ -164,6 +164,8 @@ export class SpacesService {
    * Follows the bucket structure: /items and /profile
    */
   generateSecurePath(userId: number, category: 'avatar' | 'item' | 'service', filename: string, itemId?: number, variant?: string): string {
+    this.logger.debug(`🔍 SpacesService.generateSecurePath called: userId=${userId}, category=${category}, filename=${filename}, itemId=${itemId}, variant=${variant}`);
+    
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = filename.split('.').pop();
@@ -173,7 +175,11 @@ export class SpacesService {
     switch (category) {
       case 'avatar':
         // Profile images go in the /profile folder
-        basePath = `profile/${userId}`;
+        if (variant) {
+          basePath = `profile/${userId}/${variant}`;
+        } else {
+          basePath = `profile/${userId}`;
+        }
         break;
       case 'item':
         // Item images go in the /items folder
@@ -193,7 +199,9 @@ export class SpacesService {
         basePath = `items/misc/user-${userId}`;
     }
 
-    return `${basePath}/${timestamp}-${randomString}.${fileExtension}`;
+    const finalPath = `${basePath}/${timestamp}-${randomString}.${fileExtension}`;
+    this.logger.debug(`🔍 Final generated path: ${finalPath}`);
+    return finalPath;
   }
 
   /**

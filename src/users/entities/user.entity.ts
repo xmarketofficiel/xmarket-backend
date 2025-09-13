@@ -41,6 +41,15 @@ export class User {
   @Column({ name: 'profile_image_url', nullable: true })
   profileImageUrl: string;
 
+  @Column({ name: 'profile_image_spaces_url', nullable: true })
+  profileImageSpacesUrl: string;
+
+  @Column({ name: 'profile_image_spaces_key', nullable: true })
+  profileImageSpacesKey: string;
+
+  @Column({ name: 'profile_image_variants', type: 'json', nullable: true })
+  profileImageVariants: { [key: string]: string };
+
   @Column({ name: 'show_sold_items', default: true })
   showSoldItems: boolean;
 

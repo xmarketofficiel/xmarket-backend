@@ -65,6 +65,13 @@ export class DualImageService {
     if (!cloudinary.config().cloud_name) {
       this.logger.warn('Cloudinary not configured properly');
     }
+    
+    // Log DualImageService initialization
+    this.logger.log('🚀 DualImageService initialized');
+    this.logger.log(`📋 Spaces configured: ${this.spacesService.isConfigured()}`);
+    if (this.spacesService.isConfigured()) {
+      this.logger.log(`📋 Spaces config: ${JSON.stringify(this.spacesService.getConfigStatus())}`);
+    }
   }
 
   /**
@@ -84,8 +91,11 @@ export class DualImageService {
       variants: {}
     };
 
+    this.logger.log(`🚀 Starting dual upload for user ${userId}, category: ${category}, filename: ${filename}`);
+
     try {
       // Upload original to Cloudinary (with their built-in transformations)
+      this.logger.log('📤 Starting Cloudinary upload...');
       const cloudinaryResult = await this.uploadToCloudinary(
         imageBuffer,
         userId,
@@ -94,8 +104,10 @@ export class DualImageService {
         itemId
       );
       response.primary = cloudinaryResult;
+      this.logger.log(`✅ Cloudinary upload result: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
 
       // Resize and upload multiple variants to DO Spaces
+      this.logger.log('📤 Starting DigitalOcean Spaces upload...');
       const spacesResult = await this.resizeAndUploadToSpaces(
         imageBuffer,
         userId,
@@ -104,6 +116,7 @@ export class DualImageService {
         itemId
       );
       response.backup = spacesResult;
+      this.logger.log(`✅ Spaces upload result: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
 
       // Set recommended URLs
       response.recommendedUrl = cloudinaryResult.cloudinaryUrl || spacesResult.spacesUrl || '';
@@ -116,8 +129,10 @@ export class DualImageService {
         });
       }
 
+      this.logger.log(`🎯 Final result - Primary: ${response.primary.success}, Backup: ${response.backup.success}, URL: ${response.recommendedUrl}`);
+
     } catch (error) {
-      this.logger.error(`Dual upload failed: ${error.message}`);
+      this.logger.error(`❌ Dual upload failed: ${error.message}`);
       response.primary.errors?.push(error.message);
       response.backup.errors?.push(error.message);
     }
@@ -140,6 +155,17 @@ export class DualImageService {
       spacesVariants: [],
       errors: [] 
     };
+
+    this.logger.log(`🔄 Starting Spaces upload for user ${userId}, category: ${category}`);
+
+    // Check if Spaces is configured
+    if (!this.spacesService.isConfigured()) {
+      this.logger.error('❌ DigitalOcean Spaces is not properly configured');
+      result.errors?.push('DigitalOcean Spaces not configured');
+      return result;
+    }
+
+    this.logger.log(`✅ Spaces configuration verified`);
 
     try {
       // Process each variant
@@ -329,13 +355,19 @@ export class DualImageService {
     variant: string,
     itemId?: number
   ): string {
-    // Use the SpacesService method to generate the proper path
-    return this.spacesService.generateVariantPath(
+    this.logger.debug(`🔍 Generating Spaces key: userId=${userId}, category=${category}, variant=${variant}, itemId=${itemId}, filename=${filename}`);
+    
+    // Use the correct generateSecurePath method directly with the category and variant
+    const path = this.spacesService.generateSecurePath(
       userId,
-      itemId || 0,
-      variant as 'thumbnail' | 'small' | 'medium' | 'large',
-      filename
+      category as 'avatar' | 'item' | 'service',
+      filename,
+      itemId,
+      variant
     );
+    
+    this.logger.debug(`🔍 Generated Spaces path: ${path}`);
+    return path;
   }
 
   /**
