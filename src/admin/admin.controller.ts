@@ -207,10 +207,14 @@ export class AdminController {
     return { success: true, message: `Report ${updateData.status} successfully` };
   }
 
-  @Get('me')
-  async getCurrentAdmin(@CurrentUser() user: User): Promise<AdminUserResponse> {
-    console.log('Admin /me endpoint called by user:', user.id, user.email);
-    return this.adminService.getUserById(user.id);
+    @Get('me')
+  async getMe(@CurrentUser() user: any) {
+    // Return current admin user info
+    return {
+      id: user.id,
+      email: user.email,
+      isAdmin: user.isAdmin
+    };
   }
 
   // Category Management

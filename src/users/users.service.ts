@@ -289,8 +289,6 @@ export class UsersService {
         ]
       });
 
-      console.log('User query result:', user);
-
       if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
@@ -301,8 +299,6 @@ export class UsersService {
         relations: ['images'],
         order: { createdAt: 'DESC' }
       });
-
-      console.log('Found items:', soldItems);
 
       // Respect privacy settings
       const showSoldItems = user.showSoldItems !== false; // Default to true if not set
