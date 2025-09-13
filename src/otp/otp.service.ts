@@ -65,10 +65,6 @@ export class OtpService {
       },
     });
 
-    console.log("++++++++++++++++++++", email,
-        code,
-        type,);
-
     if (!otp) {
       throw new BadRequestException('Invalid or expired OTP');
     }

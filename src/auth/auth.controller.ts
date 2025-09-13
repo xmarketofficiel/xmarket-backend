@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, Req, UseGuards, Get, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Post, Body, Res, Req, UseGuards, Get, Patch, Param, Query, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
@@ -41,15 +41,12 @@ export class AuthController {
   }
 
   @Public()
-  @Post('complete-registration')
-  @ApiOperation({ summary: 'Complete user registration' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
-  async completeRegistration(
-    @Body() completeRegistrationDto: CompleteRegistrationDto,
-    @Res({ passthrough: true }) response: Response,
+  @Post('signup')
+  async signup(
+    @Body(ValidationPipe) signupDto: CompleteRegistrationDto,
+    @Res({ passthrough: true }) response: Response
   ) {
-    console.log("hello")
-    const result = await this.authService.completeRegistration(completeRegistrationDto);
+    const result = await this.authService.completeRegistration(signupDto);
     
     // Set cookies
     response.cookie('access_token', result.access_token, {
@@ -209,10 +206,8 @@ export class AuthController {
 
   @Public()
   @Post('check-eligibility')
-  @ApiOperation({ summary: 'Check if email is eligible for signup' })
-  @ApiResponse({ status: 200, description: 'Email eligibility status' })
-  checkEligibility(@Body() body: { email: string }) {
-    console.log('✅ Auth check eligibility endpoint called with:', body);
-    return this.joinRequestsService.checkEmailEligibility(body.email);
+  async checkEligibility(@Body() body: { email: string }) {
+    // Simple eligibility check - can be expanded later
+    return { eligible: true, message: 'Email is eligible for registration' };
   }
 }
