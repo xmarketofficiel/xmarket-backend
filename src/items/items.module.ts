@@ -11,12 +11,14 @@ import { Category } from '../categories/entities/category.entity';
 import { User } from '../users/entities/user.entity';
 import { CommonModule } from '../common/common.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Item, ItemImage, ItemFavorite, ItemReport, ItemPurchase, Category, User]),
     CommonModule,
     NotificationsModule,
+    StorageModule,
   ],
   controllers: [ItemsController],
   providers: [ItemsService],
