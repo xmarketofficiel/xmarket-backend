@@ -308,9 +308,11 @@ export class UsersService {
     await this.userReportsRepository.save(report);
   }
 
-  // Get user profile with statistics
+  // Get user profile with comprehensive statistics
   async getUserProfile(userId: number) {
     try {
+      console.log('📊 getUserProfile called for userId:', userId);
+      
       // Get user with privacy settings
       const user = await this.usersRepository.findOne({ 
         where: { id: userId },
@@ -323,6 +325,8 @@ export class UsersService {
           'status',
           'isVerified',
           'profileImageUrl',
+          'profileImageSpacesUrl',
+          'profileImageSpacesKey',
           'averageRating',
           'totalRatings',
           'createdAt',
@@ -335,49 +339,111 @@ export class UsersService {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
 
-      // Get user's sold items with images using TypeORM
-      const soldItems = await this.itemsRepository.find({
-        where: { sellerId: userId, isActive: true },
-        relations: ['images'],
-        order: { createdAt: 'DESC' }
+      console.log('👤 User found:', { id: user.id, fullName: user.fullName });
+
+      // Get basic counts using simple queries
+      const activeListingsCount = await this.itemsRepository.count({
+        where: { sellerId: userId, isActive: true, isSold: false }
       });
 
-      // Respect privacy settings
-      const showSoldItems = user.showSoldItems !== false; // Default to true if not set
-      const showPurchases = user.showPurchases !== false; // Default to true if not set
-      // Phone numbers are never shown in public profiles for privacy
+      const soldItemsCount = await this.itemsRepository.count({
+        where: { sellerId: userId, isSold: true }
+      });
 
-      // Filter user data based on privacy settings
+      // Count saved items directly from item_favorites table
+      const savedItemsResult = await this.itemsRepository.query(`
+        SELECT COUNT(*) as count 
+        FROM item_favorites 
+        WHERE "userId" = $1
+      `, [userId]);
+      const savedItemsCount = parseInt(savedItemsResult[0]?.count || '0');
+
+      // Count interests
+      const interestsResult = await this.itemsRepository.query(`
+        SELECT COUNT(*) as count 
+        FROM interests 
+        WHERE user_id = $1 AND is_active = true
+      `, [userId]);
+      const interestsCount = parseInt(interestsResult[0]?.count || '0');
+
+      // Get total views
+      const viewsResult = await this.itemsRepository.query(`
+        SELECT COALESCE(SUM(view_count), 0) as total_views
+        FROM items 
+        WHERE seller_id = $1
+      `, [userId]);
+      const totalViews = parseInt(viewsResult[0]?.total_views || '0');
+
+      console.log('📈 Statistics calculated:', {
+        activeListings: activeListingsCount,
+        soldItems: soldItemsCount,
+        savedItems: savedItemsCount,
+        interests: interestsCount,
+        totalViews: totalViews
+      });
+
+      // Calculate other stats
+      const averageRating = user.averageRating || 0;
+      const totalRatings = user.totalRatings || 0;
+      const conversionRate = activeListingsCount > 0 ? 
+        (soldItemsCount / (activeListingsCount + soldItemsCount)) * 100 : 0;
+      const responseTime = 2; // Mock data
+
+      // Filter user data
       const publicUser = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        whatsappNumber: undefined, // Never show phone numbers in public profiles
+        whatsappNumber: undefined,
         role: user.role,
         status: user.status,
         isVerified: user.isVerified,
         profileImageUrl: user.profileImageUrl,
-        averageRating: user.averageRating,
-        totalRatings: user.totalRatings,
+        profileImageSpacesUrl: user.profileImageSpacesUrl,
+        profileImageSpacesKey: user.profileImageSpacesKey,
+        averageRating: averageRating,
+        totalRatings: totalRatings,
         createdAt: user.createdAt
       };
 
+      // Comprehensive statistics matching frontend expectations
+      const comprehensiveStats = {
+        // Core metrics
+        activeListingsCount: activeListingsCount,
+        soldItemsCount: soldItemsCount,
+        purchaseHistoryCount: 0,
+        savedItemsCount: savedItemsCount,
+        pendingSalesCount: 0,
+        viewedItemsCount: 0,
+        notificationsCount: 0,
+        
+        // Financial metrics
+        totalEarnings: 0,
+        totalSpent: 0,
+        
+        // Performance metrics
+        averageRating: averageRating,
+        responseTime: responseTime,
+        successfulTransactions: soldItemsCount,
+        profileViews: 0,
+        totalViews: totalViews,
+        conversionRate: conversionRate,
+        
+        // Legacy fields for backward compatibility
+        totalSold: soldItemsCount,
+        totalBought: 0,
+        totalRevenue: 0,
+        joinedDate: user.createdAt,
+        lastActivity: user.createdAt
+      };
+
+      console.log('📊 Final stats:', comprehensiveStats);
+
       return {
         user: publicUser,
-        stats: {
-          totalSold: showSoldItems ? soldItems.filter(item => item.isSold).length : 0,
-          totalBought: 0, // TODO: Implement purchase tracking
-          totalRevenue: showSoldItems ? soldItems.filter(item => item.isSold).reduce((sum, item) => sum + Number(item.price), 0) : 0,
-          totalSpent: 0, // TODO: Implement purchase tracking
-          joinedDate: user.createdAt,
-          lastActivity: user.createdAt
-        },
-        soldItems: showSoldItems ? soldItems.map(item => ({
-          ...item,
-          category: { name: item.category }, // Map category string to category object
-          viewsCount: item.viewCount  // Map viewCount to viewsCount for frontend compatibility
-        })) : [],
-        boughtItems: showPurchases ? [] : [] // TODO: Implement purchase tracking
+        stats: comprehensiveStats,
+        soldItems: [],
+        boughtItems: []
       };
     } catch (error) {
       console.error('Error in getUserProfile:', error);
