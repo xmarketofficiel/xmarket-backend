@@ -307,20 +307,11 @@ export class ItemsService {
     }
 
     try {
-      // Check if dual image service is properly configured
-      console.log('🔍 Checking dual image service configuration...');
-      
       // Upload images to both Cloudinary and DigitalOcean Spaces
       const uploadResults = [];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        console.log(`🔍 Uploading item image ${i + 1}/${files.length} for item ${itemId}`);
-        console.log(`🔍 File details:`, {
-          originalname: file.originalname,
-          size: file.buffer.length,
-          mimetype: file.mimetype
-        });
         
         // Use dual storage service for item images
         const uploadResult = await this.dualImageService.uploadImageToBothServices(
@@ -330,17 +321,6 @@ export class ItemsService {
           file.originalname,
           itemId // Pass itemId for proper organization in /items/{itemId}/
         );
-        
-        console.log(`🔍 Upload result for image ${i + 1}:`, {
-          primarySuccess: uploadResult.primary.success,
-          backupSuccess: uploadResult.backup.success,
-          recommendedUrl: uploadResult.recommendedUrl,
-          primaryErrors: uploadResult.primary.errors,
-          backupErrors: uploadResult.backup.errors,
-          spacesUrl: uploadResult.backup.spacesUrl,
-          spacesKey: uploadResult.backup.spacesKey,
-          variantsCount: uploadResult.backup.spacesVariants?.length || 0
-        });
         
         uploadResults.push(uploadResult);
       }
@@ -361,19 +341,10 @@ export class ItemsService {
           imageOrder: existingImages + index,
         };
         
-        console.log(`🔍 Creating database record for image ${index + 1}:`, {
-          itemId: imageRecord.itemId,
-          cloudinaryUrl: imageRecord.cloudinaryUrl ? 'SET' : 'EMPTY',
-          spacesUrl: imageRecord.spacesUrl ? 'SET' : 'EMPTY',
-          spacesKey: imageRecord.spacesKey ? 'SET' : 'EMPTY',
-          imageOrder: imageRecord.imageOrder
-        });
-        
         return this.itemImagesRepository.create(imageRecord);
       });
 
       const savedImages = await this.itemImagesRepository.save(images);
-      console.log(`✅ Saved ${savedImages.length} image records to database`);
       
       return savedImages;
     } catch (error) {

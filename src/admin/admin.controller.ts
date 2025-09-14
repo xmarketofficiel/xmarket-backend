@@ -37,25 +37,6 @@ import {
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  // Public test endpoint for seller data (remove in production)
-  @Get('test-sellers')
-  async testSellersData() {
-    try {
-      const result = await this.adminService.getSellerAnalytics(1, 10);
-      return {
-        success: true,
-        data: result,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
   @UseGuards(AdminGuard)
   @Get('dashboard/stats')
   async getDashboardStats(): Promise<AdminDashboardStats> {
@@ -264,20 +245,5 @@ export class AdminController {
     }
 
     return this.adminService.uploadItemImages(itemId, files, adminUser.id);
-  }
-
-  // Test endpoint
-  @Get('test')
-  async testAdminEndpoint(@CurrentUser() user: User) {
-    return {
-      success: true,
-      message: 'Admin endpoint working',
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      },
-      timestamp: new Date().toISOString()
-    };
   }
 }

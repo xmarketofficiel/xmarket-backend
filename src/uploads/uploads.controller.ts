@@ -75,14 +75,6 @@ export class UploadsController {
     @Body() generateUrlsDto: GenerateUrlsDto,
   ) {
     const { filename, contentType, category, itemId } = generateUrlsDto;
-    
-    console.log('🚨 Presigned URL requested:', { 
-      userId: user.id, 
-      filename, 
-      contentType, 
-      category, 
-      itemId 
-    });
 
     // Validate file type
     if (!filename.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {

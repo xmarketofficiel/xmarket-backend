@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { UsersModule } from '../users/users.module';
 import { OtpModule } from '../otp/otp.module';
@@ -13,11 +12,9 @@ import { AuthController } from './auth.controller';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { JoinRequest } from '../join-requests/entities/join-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([JoinRequest]),
     UsersModule,
     OtpModule,
     EmailModule,

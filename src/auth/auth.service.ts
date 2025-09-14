@@ -1,22 +1,15 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../email/email.service';
 import { JoinRequestsService } from '../join-requests/join-requests.service';
-import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
-import { CreateJoinRequestDto } from './dto/create-join-request.dto';
-import { UpdateJoinRequestDto } from './dto/update-join-request.dto';
 import { UserRole, UserStatus } from '../users/entities/user.entity';
-import { JoinRequest } from '../join-requests/entities/join-request.entity';
-import { JoinRequestStatus } from '../join-requests/enums/join-request-status.enum';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -28,8 +21,6 @@ export class AuthService {
     private otpService: OtpService,
     private emailService: EmailService,
     private joinRequestsService: JoinRequestsService,
-    @InjectRepository(JoinRequest)
-    private joinRequestRepository: Repository<JoinRequest>,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -100,7 +91,7 @@ export class AuthService {
 
     return { message: 'OTP verified successfully', verified: true };
   }
-  extractFullName(email: string): string | null {
+  private extractFullName(email: string): string | null {
     if (!email || typeof email !== 'string') return null;
 
     // Extract just the part before the '@'
@@ -265,62 +256,5 @@ export class AuthService {
         profileImageUrl: user.profileImageUrl,
       },
     };
-  }
-
-  // Join Request methods
-  async createJoinRequest(createJoinRequestDto: CreateJoinRequestDto): Promise<JoinRequest> {
-    // Check if user already has a pending request
-    const existingRequest = await this.joinRequestRepository.findOne({
-      where: {
-        email: createJoinRequestDto.email,
-        status: JoinRequestStatus.PENDING
-      }
-    });
-
-    if (existingRequest) {
-      throw new ConflictException('You already have a pending request');
-    }
-
-    // Check if user is already registered
-    const existingUser = await this.usersService.findByEmail(createJoinRequestDto.email);
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
-
-    const joinRequest = this.joinRequestRepository.create(createJoinRequestDto);
-    return this.joinRequestRepository.save(joinRequest);
-  }
-
-  async updateJoinRequest(
-    id: number, 
-    updateJoinRequestDto: UpdateJoinRequestDto,
-    adminId: number
-  ): Promise<JoinRequest> {
-    const joinRequest = await this.joinRequestRepository.findOne({
-      where: { id }
-    });
-
-    if (!joinRequest) {
-      throw new NotFoundException('Join request not found');
-    }
-
-    // Update the request
-    Object.assign(joinRequest, updateJoinRequestDto);
-    joinRequest.reviewedBy = adminId;
-    joinRequest.reviewedAt = new Date();
-
-    return this.joinRequestRepository.save(joinRequest);
-  }
-
-  async getAllJoinRequests(status?: string): Promise<JoinRequest[]> {
-    const query = this.joinRequestRepository.createQueryBuilder('joinRequest');
-
-    if (status) {
-      query.where('joinRequest.status = :status', { status });
-    }
-
-    return query
-      .orderBy('joinRequest.createdAt', 'DESC')
-      .getMany();
   }
 }

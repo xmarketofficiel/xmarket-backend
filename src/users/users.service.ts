@@ -139,7 +139,6 @@ export class UsersService {
   }
 
   async updateProfileImageWithCloudinary(id: number, file: Express.Multer.File): Promise<User> {
-    console.log('🚨 updateProfileImageWithCloudinary called for user:', id);
     const user = await this.findOne(id);
     
     // Validate file input
@@ -166,13 +165,6 @@ export class UsersService {
     }
 
     try {
-      console.log('🔍 Starting dual storage upload for user:', id);
-      console.log('🔍 File details:', { 
-        originalname: file.originalname, 
-        size: file.buffer.length,
-        mimetype: file.mimetype 
-      });
-      
       // Use dual storage for profile picture upload
       const uploadResult = await this.dualImageService.uploadImageToBothServices(
         file.buffer,
@@ -180,17 +172,6 @@ export class UsersService {
         'avatar',
         file.originalname
       );
-      
-      console.log('🔍 Upload result:', {
-        primarySuccess: uploadResult.primary.success,
-        backupSuccess: uploadResult.backup.success,
-        recommendedUrl: uploadResult.recommendedUrl,
-        primaryErrors: uploadResult.primary.errors,
-        backupErrors: uploadResult.backup.errors,
-        spacesUrl: uploadResult.backup.spacesUrl,
-        spacesKey: uploadResult.backup.spacesKey,
-        variantsCount: uploadResult.backup.spacesVariants?.length || 0
-      });
       
       // Save all image URLs to user record
       user.profileImageUrl = uploadResult.recommendedUrl; // Cloudinary URL (primary)
@@ -311,8 +292,6 @@ export class UsersService {
   // Get user profile with comprehensive statistics
   async getUserProfile(userId: number) {
     try {
-      console.log('📊 getUserProfile called for userId:', userId);
-      
       // Get user with privacy settings
       const user = await this.usersRepository.findOne({ 
         where: { id: userId },
@@ -338,8 +317,6 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
-
-      console.log('👤 User found:', { id: user.id, fullName: user.fullName });
 
       // Get basic counts using simple queries
       const activeListingsCount = await this.itemsRepository.count({
@@ -373,14 +350,6 @@ export class UsersService {
         WHERE seller_id = $1
       `, [userId]);
       const totalViews = parseInt(viewsResult[0]?.total_views || '0');
-
-      console.log('📈 Statistics calculated:', {
-        activeListings: activeListingsCount,
-        soldItems: soldItemsCount,
-        savedItems: savedItemsCount,
-        interests: interestsCount,
-        totalViews: totalViews
-      });
 
       // Calculate other stats
       const averageRating = user.averageRating || 0;
@@ -436,8 +405,6 @@ export class UsersService {
         joinedDate: user.createdAt,
         lastActivity: user.createdAt
       };
-
-      console.log('📊 Final stats:', comprehensiveStats);
 
       return {
         user: publicUser,

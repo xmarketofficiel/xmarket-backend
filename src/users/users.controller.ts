@@ -71,8 +71,6 @@ export class UsersController {
     @CurrentUser() user: User,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<User> {
-    console.log('🚨 uploadAvatar endpoint called for user:', user.id);
-    console.log('🚨 File received:', file ? { name: file.originalname, size: file.size, mimetype: file.mimetype } : 'No file');
     return this.usersService.updateProfileImageWithCloudinary(user.id, file);
   }
 

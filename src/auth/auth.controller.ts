@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, Req, UseGuards, Get, Patch, Param, Query, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Body, Res, Req, Get, Patch, Param, Query, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
@@ -8,7 +8,6 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CreateJoinRequestDto } from '../join-requests/dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from '../join-requests/dto/update-join-request.dto';
 import { JoinRequestsService } from '../join-requests/join-requests.service';
@@ -151,7 +150,8 @@ export class AuthController {
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      domain: undefined,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
