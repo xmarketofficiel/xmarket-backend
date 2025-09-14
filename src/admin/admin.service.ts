@@ -950,6 +950,45 @@ export class AdminService {
     await this.itemRepository.remove(item);
   }
 
+  async updateItemStatus(itemId: number, isActive: boolean, reason?: string): Promise<AdminItemResponse> {
+    const item = await this.itemRepository.findOne({ 
+      where: { id: itemId },
+      relations: ['seller'] 
+    });
+
+    if (!item) {
+      throw new NotFoundException("Item not found");
+    }
+
+    // Update the item's active status
+    item.isActive = isActive;
+    await this.itemRepository.save(item);
+
+    // Return the updated item in AdminItemResponse format
+    return {
+      id: item.id,
+      name: item.title,
+      description: item.description,
+      price: item.price,
+      status: item.isSold ? "sold" : item.isActive ? "active" : "inactive",
+      isActive: item.isActive,
+      isSold: item.isSold,
+      seller: {
+        id: item.seller.id,
+        fullName: item.seller.fullName,
+        email: item.seller.email,
+      },
+      category: {
+        id: 1,
+        name: item.category,
+      },
+      createdAt: item.createdAt,
+      viewsCount: item.viewCount || 0,
+      favoritesCount: 0,
+      reportsCount: 0,
+    };
+  }
+
   async getAllReports(
     page: number = 1,
     limit: number = 10

@@ -42,6 +42,15 @@ export class AuthService {
       throw new UnauthorizedException('Please verify your email first');
     }
 
+    // Check if user is suspended or banned
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new UnauthorizedException('Your account has been suspended. Please contact support for assistance.');
+    }
+
+    if (user.status === UserStatus.BANNED) {
+      throw new UnauthorizedException('Your account has been banned. Please contact support for assistance.');
+    }
+
     const payload = { email: user.email, sub: user.id };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, {
@@ -224,8 +233,16 @@ export class AuthService {
     }
 
     // Check if user is active
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new UnauthorizedException('Your admin account has been suspended. Please contact super admin for assistance.');
+    }
+
+    if (user.status === UserStatus.BANNED) {
+      throw new UnauthorizedException('Your admin account has been banned. Please contact super admin for assistance.');
+    }
+
     if (user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('Account is suspended or banned');
+      throw new UnauthorizedException('Account is not active');
     }
 
     // Update last login

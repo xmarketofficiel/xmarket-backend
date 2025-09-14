@@ -18,6 +18,7 @@ import { User } from '../users/entities/user.entity';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  // Updated auth controller with admin cookie support
   constructor(
     private authService: AuthService,
     private joinRequestsService: JoinRequestsService
@@ -107,8 +108,45 @@ export class AuthController {
   @Post('admin/login')
   @ApiOperation({ summary: 'Admin login' })
   @ApiResponse({ status: 200, description: 'Admin logged in successfully' })
-  async adminLogin(@Body() loginDto: LoginDto) {
-    return this.authService.adminLogin(loginDto);
+  async adminLogin(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) response: Response
+  ) {
+    const result = await this.authService.adminLogin(loginDto);
+    
+    // Set HTTP-only cookies for admin session
+    response.cookie('admin_token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+
+    response.cookie('admin_refresh_token', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return {
+      message: 'Admin login successful',
+      user: result.user,
+    };
+  }
+
+  @Public()
+  @Post('admin/logout')
+  @ApiOperation({ summary: 'Admin logout' })
+  @ApiResponse({ status: 200, description: 'Admin logged out successfully' })
+  async adminLogout(@Res({ passthrough: true }) response: Response) {
+    // Clear admin cookies
+    response.clearCookie('admin_token');
+    response.clearCookie('admin_refresh_token');
+    
+    return {
+      message: 'Admin logout successful',
+    };
   }
 
   @Public()

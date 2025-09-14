@@ -18,6 +18,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -30,6 +31,7 @@ import {
   CreateUserDto,
   CreateItemDto as AdminCreateItemDto,
   UpdateUserStatusDto,
+  UpdateItemStatusDto,
   BulkActionDto,
 } from './dto/admin.dto';
 
@@ -168,6 +170,15 @@ export class AdminController {
     return this.adminService.deleteItem(id);
   }
 
+  @Put('items/:id/status')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async updateItemStatus(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateItemStatusDto: UpdateItemStatusDto
+  ): Promise<AdminItemResponse> {
+    return this.adminService.updateItemStatus(id, updateItemStatusDto.isActive, updateItemStatusDto.reason);
+  }
+
   @Get('reports')
   async getAllReports(
     @Query('page') page: number = 1,
@@ -188,7 +199,8 @@ export class AdminController {
     return { success: true, message: `Report ${updateData.status} successfully` };
   }
 
-    @Get('me')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Get('me')
   async getMe(@CurrentUser() user: any) {
     // Return current admin user info
     return {
