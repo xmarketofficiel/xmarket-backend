@@ -51,17 +51,17 @@ export class AuthController {
     // Set cookies
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      domain: undefined,
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      domain:undefined,
+      sameSite: 'none',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      domain: undefined,
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      sameSite: 'none',
+      domain:undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -84,17 +84,17 @@ export class AuthController {
     // Set cookies
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      domain: undefined,
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      sameSite: 'none',
+      domain:undefined,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      domain: undefined,
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      sameSite: 'none',
+      domain:undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
