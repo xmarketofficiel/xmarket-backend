@@ -12,6 +12,7 @@ import { UpdateItemDto } from './dto/update-item.dto';
 import { SearchItemsDto } from './dto/search-items.dto';
 import { User } from '../users/entities/user.entity';
 import { CloudinaryService } from '../common/services/cloudinary.service';
+import { DualImageService } from '../storage/dual-image.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 
@@ -31,6 +32,7 @@ export class ItemsService {
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
     private cloudinaryService: CloudinaryService,
+    private dualImageService: DualImageService,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -288,7 +290,7 @@ export class ItemsService {
     return this.itemImagesRepository.save(images);
   }
 
-  // New method for uploading images with Cloudinary
+  // New method for uploading images with dual storage (Cloudinary + DigitalOcean Spaces)
   async uploadImages(itemId: number, files: Express.Multer.File[], userId: number): Promise<ItemImage[]> {
     const item = await this.findOne(itemId);
     
@@ -305,21 +307,48 @@ export class ItemsService {
     }
 
     try {
-      // Upload all images to Cloudinary with backend processing (using legacy compatibility method)
-      const uploadResults = await this.cloudinaryService.uploadMultipleImagesLegacy(files, `marketplace-items/item-${itemId}`);
+      // Upload images to both Cloudinary and DigitalOcean Spaces
+      const uploadResults = [];
       
-      // Create database records
-      const images = uploadResults.map((result, index) => 
-        this.itemImagesRepository.create({
-          itemId,
-          imageUrl: result.url,
-          publicId: result.publicId,
-          imageOrder: existingImages + index,
-        })
-      );
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Use dual storage service for item images
+        const uploadResult = await this.dualImageService.uploadImageToBothServices(
+          file.buffer,
+          userId,
+          'item',
+          file.originalname,
+          itemId // Pass itemId for proper organization in /items/{itemId}/
+        );
+        
+        uploadResults.push(uploadResult);
+      }
 
-      return this.itemImagesRepository.save(images);
+      // Create database records with both Cloudinary and Spaces URLs
+      const images = uploadResults.map((result, index) => {
+        const imageRecord = {
+          itemId,
+          // Primary storage (Cloudinary)
+          cloudinaryUrl: result.recommendedUrl,
+          cloudinaryPublicId: result.primary.publicId,
+          // Backup storage (DigitalOcean Spaces)
+          spacesUrl: result.backup.spacesUrl,
+          spacesKey: result.backup.spacesKey,
+          // Legacy support
+          imageUrl: result.recommendedUrl,
+          publicId: result.primary.publicId,
+          imageOrder: existingImages + index,
+        };
+        
+        return this.itemImagesRepository.create(imageRecord);
+      });
+
+      const savedImages = await this.itemImagesRepository.save(images);
+      
+      return savedImages;
     } catch (error) {
+      console.error('Failed to upload item images:', error);
       throw new BadRequestException('Failed to upload images: ' + error.message);
     }
   }

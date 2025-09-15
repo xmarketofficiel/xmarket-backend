@@ -110,6 +110,11 @@ export interface UpdateUserStatusDto {
   reason?: string;
 }
 
+export interface UpdateItemStatusDto {
+  isActive: boolean;
+  reason?: string;
+}
+
 export interface BulkActionDto {
   userIds: number[];
   action: 'suspend' | 'activate' | 'ban' | 'delete';

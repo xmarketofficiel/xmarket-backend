@@ -18,6 +18,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -30,31 +31,13 @@ import {
   CreateUserDto,
   CreateItemDto as AdminCreateItemDto,
   UpdateUserStatusDto,
+  UpdateItemStatusDto,
   BulkActionDto,
 } from './dto/admin.dto';
 
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
-
-  // Public test endpoint for seller data (remove in production)
-  @Get('test-sellers')
-  async testSellersData() {
-    try {
-      const result = await this.adminService.getSellerAnalytics(1, 10);
-      return {
-        success: true,
-        data: result,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
 
   @UseGuards(AdminGuard)
   @Get('dashboard/stats')
@@ -187,6 +170,15 @@ export class AdminController {
     return this.adminService.deleteItem(id);
   }
 
+  @Put('items/:id/status')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async updateItemStatus(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateItemStatusDto: UpdateItemStatusDto
+  ): Promise<AdminItemResponse> {
+    return this.adminService.updateItemStatus(id, updateItemStatusDto.isActive, updateItemStatusDto.reason);
+  }
+
   @Get('reports')
   async getAllReports(
     @Query('page') page: number = 1,
@@ -207,10 +199,15 @@ export class AdminController {
     return { success: true, message: `Report ${updateData.status} successfully` };
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('me')
-  async getCurrentAdmin(@CurrentUser() user: User): Promise<AdminUserResponse> {
-    console.log('Admin /me endpoint called by user:', user.id, user.email);
-    return this.adminService.getUserById(user.id);
+  async getMe(@CurrentUser() user: any) {
+    // Return current admin user info
+    return {
+      id: user.id,
+      email: user.email,
+      isAdmin: user.isAdmin
+    };
   }
 
   // Category Management
@@ -260,20 +257,5 @@ export class AdminController {
     }
 
     return this.adminService.uploadItemImages(itemId, files, adminUser.id);
-  }
-
-  // Test endpoint
-  @Get('test')
-  async testAdminEndpoint(@CurrentUser() user: User) {
-    return {
-      success: true,
-      message: 'Admin endpoint working',
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      },
-      timestamp: new Date().toISOString()
-    };
   }
 }

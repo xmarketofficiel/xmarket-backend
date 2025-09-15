@@ -142,7 +142,6 @@ export class ServicesController {
     @Body() createRatingDto: CreateRatingDto,
     @Request() req,
   ): Promise<Rating> {
-    console.log("req.user.id",req);
     return await this.servicesService.addRating(serviceId, createRatingDto, req.user.id);
   }
 

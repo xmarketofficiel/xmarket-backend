@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseIntPipe, BadRequestException, NotFoundException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { User } from './entities/user.entity';
 
 @ApiTags('users')
@@ -74,6 +75,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get user public profile' })
   @ApiResponse({ status: 200, description: 'User public profile retrieved successfully' })
   async getUserProfile(@Param('id', ParseIntPipe) id: number) {
@@ -81,6 +83,7 @@ export class UsersController {
   }
 
   @Get(':id/items')
+  @Public()
   @ApiOperation({ summary: 'Get user items' })
   @ApiResponse({ status: 200, description: 'User items retrieved successfully' })
   async getUserItems(@Param('id', ParseIntPipe) id: number) {

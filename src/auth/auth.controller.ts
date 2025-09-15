@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, Req, UseGuards, Get, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Post, Body, Res, Req, Get, Patch, Param, Query, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
@@ -8,7 +8,6 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CreateJoinRequestDto } from '../join-requests/dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from '../join-requests/dto/update-join-request.dto';
 import { JoinRequestsService } from '../join-requests/join-requests.service';
@@ -19,6 +18,7 @@ import { User } from '../users/entities/user.entity';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  // Updated auth controller with admin cookie support
   constructor(
     private authService: AuthService,
     private joinRequestsService: JoinRequestsService
@@ -41,15 +41,12 @@ export class AuthController {
   }
 
   @Public()
-  @Post('complete-registration')
-  @ApiOperation({ summary: 'Complete user registration' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
-  async completeRegistration(
-    @Body() completeRegistrationDto: CompleteRegistrationDto,
-    @Res({ passthrough: true }) response: Response,
+  @Post('signup')
+  async signup(
+    @Body(ValidationPipe) signupDto: CompleteRegistrationDto,
+    @Res({ passthrough: true }) response: Response
   ) {
-    console.log("hello")
-    const result = await this.authService.completeRegistration(completeRegistrationDto);
+    const result = await this.authService.completeRegistration(signupDto);
     
     // Set cookies
     response.cookie('access_token', result.access_token, {
@@ -111,8 +108,45 @@ export class AuthController {
   @Post('admin/login')
   @ApiOperation({ summary: 'Admin login' })
   @ApiResponse({ status: 200, description: 'Admin logged in successfully' })
-  async adminLogin(@Body() loginDto: LoginDto) {
-    return this.authService.adminLogin(loginDto);
+  async adminLogin(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) response: Response
+  ) {
+    const result = await this.authService.adminLogin(loginDto);
+    
+    // Set HTTP-only cookies for admin session
+    response.cookie('admin_token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+
+    response.cookie('admin_refresh_token', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return {
+      message: 'Admin login successful',
+      user: result.user,
+    };
+  }
+
+  @Public()
+  @Post('admin/logout')
+  @ApiOperation({ summary: 'Admin logout' })
+  @ApiResponse({ status: 200, description: 'Admin logged out successfully' })
+  async adminLogout(@Res({ passthrough: true }) response: Response) {
+    // Clear admin cookies
+    response.clearCookie('admin_token');
+    response.clearCookie('admin_refresh_token');
+    
+    return {
+      message: 'Admin logout successful',
+    };
   }
 
   @Public()
@@ -154,7 +188,8 @@ export class AuthController {
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      domain: undefined,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
@@ -209,10 +244,8 @@ export class AuthController {
 
   @Public()
   @Post('check-eligibility')
-  @ApiOperation({ summary: 'Check if email is eligible for signup' })
-  @ApiResponse({ status: 200, description: 'Email eligibility status' })
-  checkEligibility(@Body() body: { email: string }) {
-    console.log('✅ Auth check eligibility endpoint called with:', body);
-    return this.joinRequestsService.checkEmailEligibility(body.email);
+  async checkEligibility(@Body() body: { email: string }) {
+    // Simple eligibility check - can be expanded later
+    return { eligible: true, message: 'Email is eligible for registration' };
   }
 }

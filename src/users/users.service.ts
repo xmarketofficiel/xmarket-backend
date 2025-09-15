@@ -9,6 +9,7 @@ import { Item } from '../items/entities/item.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CloudinaryService } from '../common/services/cloudinary.service';
+import { DualImageService } from '../storage/dual-image.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class UsersService {
     @InjectRepository(Item)
     private itemsRepository: Repository<Item>,
     private cloudinaryService: CloudinaryService,
+    private dualImageService: DualImageService,
   ) {}
 
   async create(createUserDto: CreateUserDto & { isVerified?: boolean }): Promise<User> {
@@ -163,11 +165,32 @@ export class UsersService {
     }
 
     try {
-      // Upload the avatar to Cloudinary
-      const uploadResult = await this.cloudinaryService.uploadImage(file, `user-avatars/user-${id}`);
+      // Use dual storage for profile picture upload
+      const uploadResult = await this.dualImageService.uploadImageToBothServices(
+        file.buffer,
+        id,
+        'avatar',
+        file.originalname
+      );
       
-      // Update user with Cloudinary URL
-      user.profileImageUrl = uploadResult.url;
+      // Save all image URLs to user record
+      user.profileImageUrl = uploadResult.recommendedUrl; // Cloudinary URL (primary)
+      
+      // Save DigitalOcean Spaces information for backup/fallback
+      if (uploadResult.backup.success && uploadResult.backup.spacesUrl) {
+        user.profileImageSpacesUrl = uploadResult.backup.spacesUrl;
+        user.profileImageSpacesKey = uploadResult.backup.spacesKey;
+        
+        // Save variant URLs as JSON object
+        if (uploadResult.backup.spacesVariants && uploadResult.backup.spacesVariants.length > 0) {
+          const variants: { [key: string]: string } = {};
+          uploadResult.backup.spacesVariants.forEach(variant => {
+            variants[variant.variant] = variant.spacesUrl;
+          });
+          user.profileImageVariants = variants;
+        }
+      }
+      
       return this.usersRepository.save(user);
     } catch (error) {
       console.error('Avatar upload error:', error);
@@ -266,11 +289,9 @@ export class UsersService {
     await this.userReportsRepository.save(report);
   }
 
-  // Get user profile with statistics
+  // Get user profile with comprehensive statistics
   async getUserProfile(userId: number) {
     try {
-      console.log(`Getting user profile for userId: ${userId}`);
-      
       // Get user with privacy settings
       const user = await this.usersRepository.findOne({ 
         where: { id: userId },
@@ -283,6 +304,8 @@ export class UsersService {
           'status',
           'isVerified',
           'profileImageUrl',
+          'profileImageSpacesUrl',
+          'profileImageSpacesKey',
           'averageRating',
           'totalRatings',
           'createdAt',
@@ -291,57 +314,103 @@ export class UsersService {
         ]
       });
 
-      console.log('User query result:', user);
-
       if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
 
-      // Get user's sold items with images using TypeORM
-      const soldItems = await this.itemsRepository.find({
-        where: { sellerId: userId, isActive: true },
-        relations: ['images'],
-        order: { createdAt: 'DESC' }
+      // Get basic counts using simple queries
+      const activeListingsCount = await this.itemsRepository.count({
+        where: { sellerId: userId, isActive: true, isSold: false }
       });
 
-      console.log('Found items:', soldItems);
+      const soldItemsCount = await this.itemsRepository.count({
+        where: { sellerId: userId, isSold: true }
+      });
 
-      // Respect privacy settings
-      const showSoldItems = user.showSoldItems !== false; // Default to true if not set
-      const showPurchases = user.showPurchases !== false; // Default to true if not set
-      // Phone numbers are never shown in public profiles for privacy
+      // Count saved items directly from item_favorites table
+      const savedItemsResult = await this.itemsRepository.query(`
+        SELECT COUNT(*) as count 
+        FROM item_favorites 
+        WHERE "userId" = $1
+      `, [userId]);
+      const savedItemsCount = parseInt(savedItemsResult[0]?.count || '0');
 
-      // Filter user data based on privacy settings
+      // Count interests
+      const interestsResult = await this.itemsRepository.query(`
+        SELECT COUNT(*) as count 
+        FROM interests 
+        WHERE user_id = $1 AND is_active = true
+      `, [userId]);
+      const interestsCount = parseInt(interestsResult[0]?.count || '0');
+
+      // Get total views
+      const viewsResult = await this.itemsRepository.query(`
+        SELECT COALESCE(SUM(view_count), 0) as total_views
+        FROM items 
+        WHERE seller_id = $1
+      `, [userId]);
+      const totalViews = parseInt(viewsResult[0]?.total_views || '0');
+
+      // Calculate other stats
+      const averageRating = user.averageRating || 0;
+      const totalRatings = user.totalRatings || 0;
+      const conversionRate = activeListingsCount > 0 ? 
+        (soldItemsCount / (activeListingsCount + soldItemsCount)) * 100 : 0;
+      const responseTime = 2; // Mock data
+
+      // Filter user data
       const publicUser = {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        whatsappNumber: undefined, // Never show phone numbers in public profiles
+        whatsappNumber: undefined,
         role: user.role,
         status: user.status,
         isVerified: user.isVerified,
         profileImageUrl: user.profileImageUrl,
-        averageRating: user.averageRating,
-        totalRatings: user.totalRatings,
+        profileImageSpacesUrl: user.profileImageSpacesUrl,
+        profileImageSpacesKey: user.profileImageSpacesKey,
+        averageRating: averageRating,
+        totalRatings: totalRatings,
         createdAt: user.createdAt
+      };
+
+      // Comprehensive statistics matching frontend expectations
+      const comprehensiveStats = {
+        // Core metrics
+        activeListingsCount: activeListingsCount,
+        soldItemsCount: soldItemsCount,
+        purchaseHistoryCount: 0,
+        savedItemsCount: savedItemsCount,
+        pendingSalesCount: 0,
+        viewedItemsCount: 0,
+        notificationsCount: 0,
+        
+        // Financial metrics
+        totalEarnings: 0,
+        totalSpent: 0,
+        
+        // Performance metrics
+        averageRating: averageRating,
+        responseTime: responseTime,
+        successfulTransactions: soldItemsCount,
+        profileViews: 0,
+        totalViews: totalViews,
+        conversionRate: conversionRate,
+        
+        // Legacy fields for backward compatibility
+        totalSold: soldItemsCount,
+        totalBought: 0,
+        totalRevenue: 0,
+        joinedDate: user.createdAt,
+        lastActivity: user.createdAt
       };
 
       return {
         user: publicUser,
-        stats: {
-          totalSold: showSoldItems ? soldItems.filter(item => item.isSold).length : 0,
-          totalBought: 0, // TODO: Implement purchase tracking
-          totalRevenue: showSoldItems ? soldItems.filter(item => item.isSold).reduce((sum, item) => sum + Number(item.price), 0) : 0,
-          totalSpent: 0, // TODO: Implement purchase tracking
-          joinedDate: user.createdAt,
-          lastActivity: user.createdAt
-        },
-        soldItems: showSoldItems ? soldItems.map(item => ({
-          ...item,
-          category: { name: item.category }, // Map category string to category object
-          viewsCount: item.viewCount  // Map viewCount to viewsCount for frontend compatibility
-        })) : [],
-        boughtItems: showPurchases ? [] : [] // TODO: Implement purchase tracking
+        stats: comprehensiveStats,
+        soldItems: [],
+        boughtItems: []
       };
     } catch (error) {
       console.error('Error in getUserProfile:', error);
