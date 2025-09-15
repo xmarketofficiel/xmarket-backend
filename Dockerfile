@@ -3,8 +3,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and npm configuration
 COPY package*.json ./
+COPY .npmrc ./
 
 # Install dependencies
 RUN npm install
