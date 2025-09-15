@@ -1,9 +1,10 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { UsersService } from '../../users/users.service';
+import { UserStatus } from '../../users/entities/user.entity';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -14,7 +15,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: Request) => {
-          return request?.cookies?.access_token;
+          // Check for regular user token first, then admin token
+          return request?.cookies?.access_token || request?.cookies?.admin_token;
         },
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
@@ -24,6 +26,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    return this.usersService.findOne(payload.sub);
+    const user = await this.usersService.findOne(payload.sub);
+    
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Check if user is suspended or banned
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new UnauthorizedException('Your account has been suspended. Please contact support for assistance.');
+    }
+
+    if (user.status === UserStatus.BANNED) {
+      throw new UnauthorizedException('Your account has been banned. Please contact support for assistance.');
+    }
+
+    return user;
   }
 }

@@ -55,6 +55,7 @@ export interface AdminReportResponse {
   id: string; // Changed to string since reports use UUID
   type: 'user' | 'item';
   reason: string;
+  description?: string;
   status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
   reportedBy: {
     id: number;
@@ -100,11 +101,17 @@ export interface CreateItemDto {
   price: number;
   category: string;
   condition: 'New' | 'Like New' | 'Good' | 'Fair';
+  quantity?: number; // Optional - defaults to 1
   sellerId?: number; // Optional - admin can create items for specific users
 }
 
 export interface UpdateUserStatusDto {
   status: 'active' | 'suspended' | 'banned';
+  reason?: string;
+}
+
+export interface UpdateItemStatusDto {
+  isActive: boolean;
   reason?: string;
 }
 

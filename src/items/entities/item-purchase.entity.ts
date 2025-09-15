@@ -11,7 +11,7 @@ export enum PurchaseStatus {
 }
 
 @Entity('item_purchases')
-@Unique(['buyerId', 'itemId']) // Prevent duplicate purchase attempts
+@Unique(['buyerId', 'itemId', 'interestSequence']) // Allow multiple interests with sequence numbers
 @Index(['buyerId', 'status'])
 @Index(['itemId', 'status'])
 export class ItemPurchase {
@@ -48,6 +48,12 @@ export class ItemPurchase {
 
   @Column({ type: 'timestamp', nullable: true })
   completedAt: Date;
+
+  @Column({ type: 'int', default: 1 })
+  interestSequence: number; // Sequence number for multiple interests from same buyer
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  interestTimestamp: Date; // Unique timestamp for each interest to bypass constraints
 
   @CreateDateColumn()
   createdAt: Date;

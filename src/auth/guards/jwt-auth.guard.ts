@@ -35,18 +35,18 @@ import {
     }
   
     private extractTokenFromRequest(request: Request): string | undefined {
-      // First try to extract from cookies (for web app)
-      const cookieToken = request.cookies?.access_token;
-      if (cookieToken) {
-        return cookieToken;
-      }
-
-      // Fallback to Authorization header (for API clients)
-      const authHeader = request.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        return authHeader.split(' ')[1];
-      }
-      
-      return undefined;
+    // First try to extract from cookies (for web app)
+    const cookieToken = request.cookies?.access_token || request.cookies?.admin_token;
+    if (cookieToken) {
+      return cookieToken;
     }
+
+    // Fallback to Authorization header (for API clients)
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      return authHeader.split(' ')[1];
+    }
+    
+    return undefined;
   }
+}

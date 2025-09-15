@@ -12,15 +12,8 @@ export class InterestsService {
   ) {}
 
   async create(createInterestDto: CreateInterestDto, userId: number): Promise<Interest> {
-    // Check if user already showed interest in this item
-    const existingInterest = await this.interestsRepository.findOne({
-      where: { userId, itemId: createInterestDto.itemId, isActive: true },
-    });
-
-    if (existingInterest) {
-      throw new ConflictException('You have already shown interest in this item');
-    }
-
+    // Allow multiple interests - each expression creates a new record
+    // This allows tracking the history of interest expressions
     const interest = this.interestsRepository.create({
       ...createInterestDto,
       userId,

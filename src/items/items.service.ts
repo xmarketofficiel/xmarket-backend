@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Item } from './entities/item.entity';
 import { ItemImage } from './entities/item-image.entity';
 import { ItemFavorite } from './entities/item-favorite.entity';
@@ -12,6 +12,7 @@ import { UpdateItemDto } from './dto/update-item.dto';
 import { SearchItemsDto } from './dto/search-items.dto';
 import { User } from '../users/entities/user.entity';
 import { CloudinaryService } from '../common/services/cloudinary.service';
+import { DualImageService } from '../storage/dual-image.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 
@@ -31,6 +32,7 @@ export class ItemsService {
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
     private cloudinaryService: CloudinaryService,
+    private dualImageService: DualImageService,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -57,7 +59,8 @@ export class ItemsService {
         .leftJoinAndSelect('item.seller', 'seller')
         .leftJoinAndSelect('item.images', 'images')
         .where('item.isActive = :isActive', { isActive: true })
-        .andWhere('item.isSold = :isSold', { isSold: false });
+        .andWhere('item.isSold = :isSold', { isSold: false })
+        .andWhere('item.quantity > :quantity', { quantity: 0 });
       
 
     if (category) {
@@ -135,15 +138,107 @@ export class ItemsService {
     return item;
   }
 
-  async update(id: number, updateItemDto: UpdateItemDto, userId: number): Promise<Item> {
+  async update(id: number, updateItemDto: UpdateItemDto, userId: number): Promise<any> {
     const item = await this.findOne(id);
     
+    // Protection 1: Only owner can edit
     if (item.sellerId !== userId) {
       throw new ForbiddenException('You can only update your own items');
     }
 
-    Object.assign(item, updateItemDto);
-    return this.itemsRepository.save(item);
+    // Protection 2: Cannot edit sold items
+    if (item.isSold) {
+      throw new BadRequestException('Cannot edit sold items');
+    }
+
+    // Protection 3: Check for PENDING purchases (these should block edits)
+    const pendingPurchases = await this.itemPurchasesRepository.find({
+      where: { 
+        itemId: id, 
+        status: PurchaseStatus.PENDING
+      }
+    });
+
+    // Only block for PENDING purchases (active negotiations)
+    if (pendingPurchases.length > 0) {
+      // Block quantity decrease below pending amount
+      if (updateItemDto.quantity !== undefined && updateItemDto.quantity < pendingPurchases.length) {
+        throw new BadRequestException(`Cannot reduce quantity below ${pendingPurchases.length}. You have ${pendingPurchases.length} pending purchase negotiations.`);
+      }
+    }
+
+    // Check for confirmed purchases (for warnings, not blocking)
+    const confirmedPurchases = await this.itemPurchasesRepository.find({
+      where: { 
+        itemId: id, 
+        status: In([PurchaseStatus.CONFIRMED, PurchaseStatus.BUYER_CONFIRMED])
+      }
+    });
+
+    // Check if there are actual meaningful changes
+    const hasChanges = (
+      (updateItemDto.title && updateItemDto.title.trim() !== item.title) ||
+      (updateItemDto.description && updateItemDto.description.trim() !== item.description) ||
+      (updateItemDto.price !== undefined && Math.abs(updateItemDto.price - item.price) > 0.01) ||
+      (updateItemDto.quantity !== undefined && updateItemDto.quantity !== item.quantity) ||
+      (updateItemDto.condition && updateItemDto.condition !== item.condition) ||
+      (updateItemDto.category && updateItemDto.category !== item.category)
+    );
+
+    // Store warning info for response headers (only if there are changes AND confirmed purchases)
+    let warningInfo = null;
+    if (confirmedPurchases.length > 0 && hasChanges) {
+      warningInfo = {
+        confirmedBuyers: confirmedPurchases.length,
+        agreedPrice: item.price,
+        hasConfirmedPurchases: true
+      };
+    }
+
+    // Protection 4: Validate price changes don't affect pending purchases
+    if (updateItemDto.price && updateItemDto.price !== item.price) {
+      const pendingPurchases = await this.itemPurchasesRepository.find({
+        where: { itemId: id, status: PurchaseStatus.PENDING }
+      });
+
+      if (pendingPurchases.length > 0) {
+        // Update agreed price for pending purchases to match new price
+        for (const purchase of pendingPurchases) {
+          purchase.agreedPrice = updateItemDto.price;
+          await this.itemPurchasesRepository.save(purchase);
+        }
+      }
+    }
+
+    // Apply updates with validation (this logic is now handled above)
+    const updatedFields = { ...updateItemDto };
+    
+    // Apply updates
+    Object.assign(item, updatedFields);
+    
+    const updatedItem = await this.itemsRepository.save(item);
+
+    // Notify interested buyers about significant changes
+    if (updateItemDto.price || updateItemDto.description || updateItemDto.title) {
+      const interestedBuyers = await this.itemPurchasesRepository.find({
+        where: { itemId: id, status: PurchaseStatus.PENDING },
+        relations: ['buyer']
+      });
+
+      for (const purchase of interestedBuyers) {
+        if (purchase.buyer) {
+          // You can add notification here if needed
+          // await this.notificationsService.notifyItemUpdate(purchase.buyer, item.title);
+        }
+      }
+    }
+
+    // Return item with warning info if confirmed purchases exist
+    return { 
+      item: updatedItem, 
+      warning: warningInfo,
+      hasConfirmedPurchases: !!warningInfo
+    };
   }
 
   async remove(id: number, userId: number): Promise<void> {
@@ -153,10 +248,28 @@ export class ItemsService {
       throw new ForbiddenException('You can only delete your own items');
     }
 
-    // First, remove all associated images from Cloudinary and database
-    await this.removeAllItemImages(id);
+    try {
+      // Clean up all related data before deleting the item
+      
+      // 1. Remove all associated images from Cloudinary and database
+      await this.removeAllItemImages(id);
 
-    await this.itemsRepository.remove(item);
+      // 2. Remove all favorites
+      await this.itemFavoritesRepository.delete({ item: { id } });
+
+      // 3. Remove all reports
+      await this.itemReportsRepository.delete({ item: { id } });
+
+      // 4. Remove all purchase interests/expressions
+      await this.itemPurchasesRepository.delete({ itemId: id });
+
+      // 5. Finally, remove the item itself using delete instead of remove
+      await this.itemsRepository.delete({ id });
+      
+    } catch (error) {
+      console.error('Error during item deletion:', error);
+      throw new InternalServerErrorException('Failed to delete item and its related data');
+    }
   }
 
   async addImages(itemId: number, imageUrls: string[], userId: number): Promise<ItemImage[]> {
@@ -177,7 +290,7 @@ export class ItemsService {
     return this.itemImagesRepository.save(images);
   }
 
-  // New method for uploading images with Cloudinary
+  // New method for uploading images with dual storage (Cloudinary + DigitalOcean Spaces)
   async uploadImages(itemId: number, files: Express.Multer.File[], userId: number): Promise<ItemImage[]> {
     const item = await this.findOne(itemId);
     
@@ -194,21 +307,48 @@ export class ItemsService {
     }
 
     try {
-      // Upload all images to Cloudinary with backend processing (using legacy compatibility method)
-      const uploadResults = await this.cloudinaryService.uploadMultipleImagesLegacy(files, `marketplace-items/item-${itemId}`);
+      // Upload images to both Cloudinary and DigitalOcean Spaces
+      const uploadResults = [];
       
-      // Create database records
-      const images = uploadResults.map((result, index) => 
-        this.itemImagesRepository.create({
-          itemId,
-          imageUrl: result.url,
-          publicId: result.publicId,
-          imageOrder: existingImages + index,
-        })
-      );
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Use dual storage service for item images
+        const uploadResult = await this.dualImageService.uploadImageToBothServices(
+          file.buffer,
+          userId,
+          'item',
+          file.originalname,
+          itemId // Pass itemId for proper organization in /items/{itemId}/
+        );
+        
+        uploadResults.push(uploadResult);
+      }
 
-      return this.itemImagesRepository.save(images);
+      // Create database records with both Cloudinary and Spaces URLs
+      const images = uploadResults.map((result, index) => {
+        const imageRecord = {
+          itemId,
+          // Primary storage (Cloudinary)
+          cloudinaryUrl: result.recommendedUrl,
+          cloudinaryPublicId: result.primary.publicId,
+          // Backup storage (DigitalOcean Spaces)
+          spacesUrl: result.backup.spacesUrl,
+          spacesKey: result.backup.spacesKey,
+          // Legacy support
+          imageUrl: result.recommendedUrl,
+          publicId: result.primary.publicId,
+          imageOrder: existingImages + index,
+        };
+        
+        return this.itemImagesRepository.create(imageRecord);
+      });
+
+      const savedImages = await this.itemImagesRepository.save(images);
+      
+      return savedImages;
     } catch (error) {
+      console.error('Failed to upload item images:', error);
       throw new BadRequestException('Failed to upload images: ' + error.message);
     }
   }
@@ -455,7 +595,7 @@ export class ItemsService {
   }
 
   // Report functionality
-  async reportItem(itemId: number, userId: number, reason: string): Promise<void> {
+  async reportItem(itemId: number, userId: number, reason: string, description?: string): Promise<void> {
     const user = { id: userId } as User;
     const item = await this.itemsRepository.findOne({ where: { id: itemId } });
     
@@ -472,10 +612,12 @@ export class ItemsService {
       throw new ForbiddenException('You have already reported this item');
     }
 
+    // Use the provided reason and description directly
     const report = this.itemReportsRepository.create({
       reporter: user,
       item,
-      reason,
+      reason: reason.trim(),
+      description: description?.trim() || null,
     });
 
     await this.itemReportsRepository.save(report);
@@ -591,20 +733,68 @@ export class ItemsService {
       throw new BadRequestException('You cannot purchase your own items');
     }
 
-    // Check for existing purchase attempt
+    // Check for existing purchases and handle multiple interests
     const existingPurchase = await this.itemPurchasesRepository.findOne({
-      where: { itemId, buyerId: userId }
+      where: { itemId, buyerId: userId },
+      order: { createdAt: 'DESC' }
     });
 
     if (existingPurchase) {
-      if (existingPurchase.status === PurchaseStatus.DECLINED) {
-        existingPurchase.status = PurchaseStatus.PENDING;
-        existingPurchase.buyerNotes = buyerNotes || existingPurchase.buyerNotes;
-        existingPurchase.updatedAt = new Date();
-        return await this.itemPurchasesRepository.save(existingPurchase);
-      } else {
-        throw new BadRequestException('You have already expressed interest in this item');
+      // If there's an existing purchase, always allow renewed interest
+      const timestamp = new Date().toISOString();
+      const renewedNotes = `${buyerNotes || 'Renewed interest'} [Renewed at: ${timestamp}]`;
+      
+      // Update existing record with new notes and renewed interest indication
+      existingPurchase.buyerNotes = renewedNotes;
+      existingPurchase.status = PurchaseStatus.PENDING; // Reset to pending for seller to see
+      existingPurchase.updatedAt = new Date();
+      
+      const savedPurchase = await this.itemPurchasesRepository.save(existingPurchase);
+
+      // Notify seller about renewed interest
+      const buyer = await this.itemsRepository.manager.findOne(User, { where: { id: userId } });
+      
+      if (item?.seller && buyer) {
+        await this.notificationsService.notifyItemInterest(
+          item.seller,
+          `${buyer.fullName || 'Someone'} (RENEWED INTEREST)`,
+          item.title
+        );
       }
+
+      return savedPurchase;
+    }
+
+    // No existing purchase or existing purchase is completed - create new one
+    const newPurchase = this.itemPurchasesRepository.create({
+      itemId,
+      buyerId: userId,
+      status: PurchaseStatus.PENDING,
+      buyerNotes,
+      agreedPrice: item.price,
+    });
+
+    try {
+      const savedPurchase = await this.itemPurchasesRepository.save(newPurchase);
+
+      // Notify the seller about the new interest
+      const buyer = await this.itemsRepository.manager.findOne(User, { where: { id: userId } });
+      
+      if (item?.seller && buyer) {
+        await this.notificationsService.notifyItemInterest(
+          item.seller,
+          buyer.fullName || 'Someone',
+          item.title
+        );
+      }
+
+      return savedPurchase;
+    } catch (error) {
+      // If there's still a unique constraint issue at database level, handle it gracefully
+      if (error.code === '23505') { // PostgreSQL unique violation
+        throw new BadRequestException('You have already expressed interest in this item. Please wait for seller response.');
+      }
+      throw error;
     }
 
     // Create new purchase interest
@@ -717,10 +907,31 @@ export class ItemsService {
 
     try {
       if (confirmed) {
-        // Final confirmation - mark as completed and item as sold
+        // Final confirmation - mark as completed
         purchase.status = PurchaseStatus.CONFIRMED;
         purchase.sellerConfirmedAt = new Date();
-        await this.itemsRepository.update(purchase.itemId, { isSold: true });
+        
+        // Decrease quantity by 1
+        const item = await this.itemsRepository.findOne({ where: { id: purchase.itemId } });
+        if (!item) {
+          throw new NotFoundException('Item not found');
+        }
+        
+        const newQuantity = item.quantity - 1;
+        
+        // Update item quantity and check if should be marked as sold
+        if (newQuantity <= 0) {
+          // Mark as sold when quantity reaches 0
+          await this.itemsRepository.update(purchase.itemId, { 
+            quantity: 0, 
+            isSold: true 
+          });
+        } else {
+          // Just decrease quantity
+          await this.itemsRepository.update(purchase.itemId, { 
+            quantity: newQuantity 
+          });
+        }
         
         // Notify buyer that seller confirmed the sale
         if (purchase.buyer) {
@@ -829,5 +1040,153 @@ export class ItemsService {
       .andWhere('purchase.status = :status', { status: PurchaseStatus.BUYER_CONFIRMED })
       .orderBy('purchase.createdAt', 'DESC')
       .getMany();
+  }
+
+  /**
+   * Get seller's items with available quantity information
+   */
+  async getSellerItems(sellerId: number, page: number = 1, limit: number = 20): Promise<{
+    items: Array<Item & { availableQuantity: number; totalSold: number; pendingPurchases: number }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasMore: boolean;
+  }> {
+    const skip = (page - 1) * limit;
+
+    // Get seller's items with images
+    const [items, total] = await this.itemsRepository.findAndCount({
+      where: { sellerId },
+      relations: ['images'],
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    // For each item, calculate available quantity, total sold, and pending purchases
+    const itemsWithQuantity = await Promise.all(
+      items.map(async (item) => {
+        // Count completed purchases (sold items)
+        const totalSold = await this.itemPurchasesRepository.count({
+          where: {
+            itemId: item.id,
+            status: PurchaseStatus.COMPLETED,
+          },
+        });
+
+        // Count pending and confirmed purchases (reserved but not yet completed)
+        const pendingPurchases = await this.itemPurchasesRepository.count({
+          where: {
+            itemId: item.id,
+            status: In([PurchaseStatus.PENDING, PurchaseStatus.BUYER_CONFIRMED, PurchaseStatus.CONFIRMED]),
+          },
+        });
+
+        // Calculate available quantity
+        const availableQuantity = Math.max(0, item.quantity - totalSold - pendingPurchases);
+
+        return {
+          ...item,
+          availableQuantity,
+          totalSold,
+          pendingPurchases,
+        };
+      })
+    );
+
+    const totalPages = Math.ceil(total / limit);
+    const hasMore = page < totalPages;
+
+    return {
+      items: itemsWithQuantity,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasMore,
+    };
+  }
+
+  /**
+   * Get seller's editable items (items that can still be modified)
+   * Only includes items that haven't been sold and don't have confirmed purchases
+   */
+  async getEditableItems(sellerId: number, page: number = 1, limit: number = 20): Promise<{
+    items: Array<Item & { availableQuantity: number; totalSold: number; pendingPurchases: number }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasMore: boolean;
+  }> {
+    const skip = (page - 1) * limit;
+
+    // Get seller's items that are not sold
+    const [items, total] = await this.itemsRepository.findAndCount({
+      where: { 
+        sellerId,
+        isSold: false,
+      },
+      relations: ['images'],
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    // Filter out items with confirmed purchases and calculate quantities
+    const editableItems = [];
+    
+    for (const item of items) {
+      // Count confirmed purchases (these make items non-editable)
+      const confirmedPurchases = await this.itemPurchasesRepository.count({
+        where: {
+          itemId: item.id,
+          status: In([PurchaseStatus.BUYER_CONFIRMED, PurchaseStatus.CONFIRMED]),
+        },
+      });
+
+      // Only include items without confirmed purchases
+      if (confirmedPurchases === 0) {
+        // Count completed purchases (sold items)
+        const totalSold = await this.itemPurchasesRepository.count({
+          where: {
+            itemId: item.id,
+            status: PurchaseStatus.COMPLETED,
+          },
+        });
+
+        // Count pending purchases
+        const pendingPurchases = await this.itemPurchasesRepository.count({
+          where: {
+            itemId: item.id,
+            status: PurchaseStatus.PENDING,
+          },
+        });
+
+        // Calculate available quantity
+        const availableQuantity = Math.max(0, item.quantity - totalSold - pendingPurchases);
+
+        editableItems.push({
+          ...item,
+          availableQuantity,
+          totalSold,
+          pendingPurchases,
+        });
+      }
+    }
+
+    const totalEditable = editableItems.length;
+    const totalPages = Math.ceil(totalEditable / limit);
+    const hasMore = page < totalPages;
+
+    return {
+      items: editableItems,
+      total: totalEditable,
+      page,
+      limit,
+      totalPages,
+      hasMore,
+    };
   }
 }

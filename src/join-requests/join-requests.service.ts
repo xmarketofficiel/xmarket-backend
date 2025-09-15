@@ -166,6 +166,12 @@ export class JoinRequestsService {
   }
 
   async checkEmailEligibility(email: string): Promise<{ eligible: boolean; reason: string }> {
+    // Check authorized emails (pre-approved specific emails)
+    const authorizedEmails = ['anass20142015@gmail.com'];
+    if (authorizedEmails.includes(email.toLowerCase())) {
+      return { eligible: true, reason: 'authorized_email' };
+    }
+
     // Check university email domains
     const universityDomains = /@(um6p\.ma|emines\.um6p\.ma)$/i;
     if (universityDomains.test(email)) {
