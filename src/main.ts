@@ -41,9 +41,27 @@ async function bootstrap() {
     allowedOrigins.push(process.env.ADMIN_PANEL_URL);
   }
 
+  // Log allowed origins in production for debugging
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Production CORS allowed origins:', allowedOrigins);
+  }
+
   app.enableCors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.log('CORS blocked origin:', origin);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie'],
   });
 
   // Swagger documentation

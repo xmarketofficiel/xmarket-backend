@@ -92,17 +92,19 @@ export class AuthController {
 
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // true if prod
+      secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
+      domain: process.env.NODE_ENV === 'production' ? undefined : undefined, // Let browser handle domain
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
-
 
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // true if prod
+      secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      domain:undefined,
+      domain: process.env.NODE_ENV === 'production' ? undefined : undefined, // Let browser handle domain
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -255,5 +257,21 @@ export class AuthController {
   async checkEligibility(@Body() body: { email: string }) {
     // Simple eligibility check - can be expanded later
     return { eligible: true, message: 'Email is eligible for registration' };
+  }
+
+  @Public()
+  @Get('debug/cookies')
+  @ApiOperation({ summary: 'Debug endpoint to check received cookies' })
+  async debugCookies(@Req() request: Request) {
+    return {
+      cookies: request.cookies,
+      headers: {
+        cookie: request.headers.cookie,
+        origin: request.headers.origin,
+        userAgent: request.headers['user-agent'],
+      },
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+    };
   }
 }
