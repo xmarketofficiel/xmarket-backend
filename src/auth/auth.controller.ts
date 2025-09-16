@@ -44,30 +44,16 @@ export class AuthController {
   @Post('signup')
   async signup(
     @Body(ValidationPipe) signupDto: CompleteRegistrationDto,
-    @Res({ passthrough: true }) response: Response
   ) {
     const result = await this.authService.completeRegistration(signupDto);
     
-    // Set cookies
-    response.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' ? true : false,
-      domain:undefined,
-      sameSite: 'none',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
-
-    response.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' ? true : false,
-      sameSite: 'none',
-      domain:undefined,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-
     return {
       message: 'Registration completed successfully',
       user: result.user,
+      access_token: result.access_token,
+      refresh_token: result.refresh_token,
+      token_type: 'Bearer',
+      expires_in: 24 * 60 * 60, // 24 hours in seconds
     };
   }
 
@@ -77,37 +63,17 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'User logged in successfully' })
   async login(
     @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.login(loginDto);
     
-    // Set cookies
-    // response.cookie('access_token', result.access_token, {
-    //   httpOnly: true,
-    //   secure: process.env.NODE_ENV === 'production' ? true : false,
-    //   sameSite: 'none',
-    //   domain:undefined,
-    //   maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    // });
-
-        response.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: true,              // must be true since Railway is HTTPS
-      sameSite: 'none',          // must be 'none' for cross-site
-      maxAge: 24 * 60 * 60 * 1000,
-    });
-
-    response.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-
+    // Return tokens in response body for Authorization Bearer usage
     return {
       message: 'Login successful',
       user: result.user,
+      access_token: result.access_token,
+      refresh_token: result.refresh_token,
+      token_type: 'Bearer',
+      expires_in: 24 * 60 * 60, // 24 hours in seconds
     };
   }
 
@@ -182,33 +148,35 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   async refreshToken(
     @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
   ) {
-    const refreshToken = request.cookies?.refresh_token;
+    // Extract refresh token from Authorization header
+    const authHeader = request.headers.authorization;
+    let refreshToken: string | undefined;
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      refreshToken = authHeader.split(' ')[1];
+    }
+    
     if (!refreshToken) {
-      throw new Error('Refresh token not found');
+      throw new Error('Refresh token not found in Authorization header');
     }
 
     const result = await this.authService.refreshToken(refreshToken);
     
-    // Set new access token cookie
-    response.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      domain: undefined,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
-
-    return { message: 'Token refreshed successfully' };
+    return { 
+      message: 'Token refreshed successfully',
+      access_token: result.access_token,
+      token_type: 'Bearer',
+      expires_in: 24 * 60 * 60, // 24 hours in seconds
+    };
   }
 
   @Post('logout')
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({ status: 200, description: 'User logged out successfully' })
-  async logout(@Res({ passthrough: true }) response: Response) {
-    response.clearCookie('access_token');
-    response.clearCookie('refresh_token');
+  async logout() {
+    // With Bearer token authentication, logout is handled client-side
+    // by removing tokens from storage
     return { message: 'Logout successful' };
   }
 
