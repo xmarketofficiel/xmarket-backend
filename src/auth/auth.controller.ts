@@ -90,23 +90,20 @@ export class AuthController {
     //   maxAge: 24 * 60 * 60 * 1000, // 24 hours
     // });
 
-    response.cookie('access_token', result.access_token, {
+        response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      domain: process.env.NODE_ENV === 'production' ? undefined : undefined, // Let browser handle domain
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      secure: true,              // must be true since Railway is HTTPS
+      sameSite: 'none',          // must be 'none' for cross-site
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      domain: process.env.NODE_ENV === 'production' ? undefined : undefined, // Let browser handle domain
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
 
     return {
       message: 'Login successful',
