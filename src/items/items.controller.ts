@@ -20,7 +20,12 @@ export class ItemsController {
   @ApiOperation({ summary: 'Get all items with pagination and filters' })
   @ApiResponse({ status: 200, description: 'Items retrieved successfully' })
   async findAll(@Query() searchDto: SearchItemsDto) {
-    return this.itemsService.findAll(searchDto);
+    const result = await this.itemsService.findAll(searchDto);
+    return {
+      success: true,
+      data: result,
+      message: 'Items retrieved successfully'
+    };
   }
 
   @Public()
@@ -28,7 +33,12 @@ export class ItemsController {
   @ApiOperation({ summary: 'Get all categories' })
   @ApiResponse({ status: 200, description: 'Categories retrieved successfully' })
   async getCategories() {
-    return this.itemsService.getCategories();
+    const categories = await this.itemsService.getCategories();
+    return {
+      success: true,
+      data: categories || [],
+      message: 'Categories retrieved successfully'
+    };
   }
 
   @Get('favorites')

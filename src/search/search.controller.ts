@@ -30,13 +30,19 @@ export class SearchController {
     @Query('page', ParseIntPipe) page?: number,
     @Query('limit', ParseIntPipe) limit?: number,
   ) {
-    return this.searchService.searchItems(query, {
+    const result = await this.searchService.searchItems(query, {
       category,
       minPrice,
       maxPrice,
       page,
       limit,
     });
+    
+    return {
+      success: true,
+      data: result,
+      message: 'Search completed successfully'
+    };
   }
 
   @Public()
