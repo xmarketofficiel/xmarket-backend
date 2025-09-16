@@ -434,14 +434,20 @@ export class ItemsService {
   }
 
   async getCategories(): Promise<Category[]> {
-    // Get categories from the database with full objects
-    const categories = await this.categoryRepository.find({
-      where: { isActive: true },
-      order: { name: 'ASC' }
-    });
+    try {
+      // Get categories from the database with full objects
+      const categories = await this.categoryRepository.find({
+        where: { isActive: true },
+        order: { name: 'ASC' }
+      });
 
-    // Return full category objects (id, name, icon, description, isActive)
-    return categories;
+      // Return full category objects (id, name, icon, description, isActive)
+      return categories || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      // Return empty array instead of throwing to prevent frontend hanging
+      return [];
+    }
   }
 
   // Favorites functionality
