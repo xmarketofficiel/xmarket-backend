@@ -82,18 +82,26 @@ export class AuthController {
     const result = await this.authService.login(loginDto);
     
     // Set cookies
+    // response.cookie('access_token', result.access_token, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === 'production' ? true : false,
+    //   sameSite: 'none',
+    //   domain:undefined,
+    //   maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    // });
+
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' ? true : false,
-      sameSite: 'none',
-      domain:undefined,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      secure: process.env.NODE_ENV === 'production', // true if prod
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
     });
+
 
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' ? true : false,
-      sameSite: 'none',
+      secure: process.env.NODE_ENV === 'production', // true if prod
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       domain:undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
