@@ -24,7 +24,9 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
+    // Normalize email to lowercase for consistent lookup
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await this.usersService.findByEmail(normalizedEmail);
     if (user && await bcrypt.compare(password, user.passwordHash)) {
       const { passwordHash, ...result } = user;
       return result;
@@ -33,7 +35,9 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
+    // Normalize email before validation
+    const normalizedEmail = loginDto.email.toLowerCase().trim();
+    const user = await this.validateUser(normalizedEmail, loginDto.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -68,21 +72,23 @@ export class AuthService {
   async sendOtp(sendOtpDto: SendOtpDto) {
     const { email } = sendOtpDto;
     
+    // Normalize email to lowercase for consistent storage and comparison
+    const normalizedEmail = email.toLowerCase().trim();
+    
     // Check email eligibility first
-    const eligibility = await this.joinRequestsService.checkEmailEligibility(email);
+    const eligibility = await this.joinRequestsService.checkEmailEligibility(normalizedEmail);
     if (!eligibility.eligible) {
       throw new UnauthorizedException('This email is not authorized to register. Please submit a join request first or use a valid university email.');
     }
     
     // Check if user already exists
-    const existingUser = await this.usersService.findByEmail(email);
-    if (existingUser && existingUser.isVerified) {
-      throw new ConflictException('Email already registered and verified');
-    }
+    const existingUser = await this.usersService.findByEmail(normalizedEmail);
+    // Allow verified users to receive OTP for re-authentication or password reset
+    // Remove the ConflictException to enable OTP resending for verified users
 
     // Generate and send OTP
-    const otp = await this.otpService.generateOtp(email, 'registration');
-    await this.emailService.sendOtpEmail(email, otp, 'registration');
+    const otp = await this.otpService.generateOtp(normalizedEmail, 'registration');
+    await this.emailService.sendOtpEmail(normalizedEmail, otp, 'registration');
 
     return { 
       message: 'OTP sent to your email',
@@ -93,7 +99,10 @@ export class AuthService {
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
     const { email, otp } = verifyOtpDto;
     
-    const isValid = await this.otpService.verifyOtp(email, otp, 'registration');
+    // Normalize email to lowercase for consistent comparison
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'registration');
     if (!isValid) {
       throw new BadRequestException('Invalid or expired OTP');
     }
@@ -125,18 +134,21 @@ export class AuthService {
   async completeRegistration(completeRegistrationDto: CompleteRegistrationDto) {
     const { email, password, fullName, whatsappNumber } = completeRegistrationDto;
 
+    // Normalize email to lowercase for consistent storage
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check if user already exists and is verified
-    const existingUser = await this.usersService.findByEmail(email);
+    const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser && existingUser.isVerified) {
       throw new ConflictException('Email already registered and verified');
     }
 
     // Use the fullName provided by user, or extract from email as fallback
-    const finalFullName = fullName || this.extractFullName(email) || 'User';
+    const finalFullName = fullName || this.extractFullName(normalizedEmail) || 'User';
     
     // Create or update user
     const userData = {
-      email,
+      email: normalizedEmail, // Store normalized email
       password,
       fullName: finalFullName,
       whatsappNumber,
@@ -149,13 +161,13 @@ export class AuthService {
       user = await this.usersService.create({ ...userData, isVerified: true });
     }
 
-    // Send welcome email
-    try {
-      await this.emailService.sendWelcomeEmail(email, finalFullName);
-    } catch (emailError) {
-      console.warn('Failed to send welcome email:', emailError.message);
-      // Don't fail the registration if email fails
-    }
+    // Send welcome email - COMMENTED OUT FOR NOW
+    // try {
+    //   await this.emailService.sendWelcomeEmail(email, finalFullName);
+    // } catch (emailError) {
+    //   console.warn('Failed to send welcome email:', emailError.message);
+    //   // Don't fail the registration if email fails
+    // }
 
     const { passwordHash, ...result } = user;
     
@@ -174,24 +186,28 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const user = await this.usersService.findByEmail(email);
+    // Normalize email to lowercase for consistent lookup
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    const otp = await this.otpService.generateOtp(email, 'password_reset');
-    await this.emailService.sendOtpEmail(email, otp, 'password_reset');
+    const otp = await this.otpService.generateOtp(normalizedEmail, 'password_reset');
+    await this.emailService.sendOtpEmail(normalizedEmail, otp, 'password_reset');
 
     return { message: 'Password reset OTP sent to your email' };
   }
 
   async resetPassword(email: string, otp: string, newPassword: string) {
-    const isValid = await this.otpService.verifyOtp(email, otp, 'password_reset');
+    // Normalize email to lowercase for consistent lookup
+    const normalizedEmail = email.toLowerCase().trim();
+    const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'password_reset');
     if (!isValid) {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
