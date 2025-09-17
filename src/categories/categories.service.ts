@@ -36,33 +36,4 @@ export class CategoriesService {
     return this.itemsService.findAll(searchDto);
   }
 
-  async seedCategories() {
-    // Default categories for marketplace
-    const defaultCategories = [
-      { name: 'Electronics', icon: '📱', description: 'Phones, laptops, gadgets' },
-      { name: 'Books', icon: '📚', description: 'Textbooks, novels, study materials' },
-      { name: 'Clothing', icon: '👕', description: 'Clothes, shoes, accessories' },
-      { name: 'Furniture', icon: '🪑', description: 'Chairs, desks, home decor' },
-      { name: 'Sports', icon: '⚽', description: 'Sports equipment, fitness gear' },
-      { name: 'Transportation', icon: '🚗', description: 'Bikes, scooters, car accessories' },
-      { name: 'Services', icon: '🔧', description: 'Tutoring, cleaning, repairs' },
-      { name: 'Other', icon: '📦', description: 'Miscellaneous items' },
-    ];
-
-    for (const categoryData of defaultCategories) {
-      const existingCategory = await this.categoryRepository.findOne({
-        where: { name: categoryData.name },
-      });
-
-      if (!existingCategory) {
-        const category = this.categoryRepository.create(categoryData);
-        await this.categoryRepository.save(category);
-      }
-    }
-
-    return {
-      success: true,
-      message: 'Categories seeded successfully',
-    };
-  }
 }
