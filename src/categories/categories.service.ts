@@ -30,6 +30,39 @@ export class CategoriesService {
     };
   }
 
+  async seedCategories() {
+    const categories = [
+      { name: 'Electronics', icon: '📱', description: 'Phones, laptops, gadgets' },
+      { name: 'Books', icon: '📚', description: 'Textbooks, novels, academic materials' },
+      { name: 'Clothing', icon: '👕', description: 'Fashion, accessories, shoes' },
+      { name: 'Furniture', icon: '🪑', description: 'Tables, chairs, storage' },
+      { name: 'Sports', icon: '⚽', description: 'Equipment, gear, accessories' },
+      { name: 'Other', icon: '📦', description: 'Miscellaneous items' },
+    ];
+
+    const savedCategories = [];
+    for (const categoryData of categories) {
+      const existingCategory = await this.categoryRepository.findOne({
+        where: { name: categoryData.name }
+      });
+
+      if (!existingCategory) {
+        const category = this.categoryRepository.create({
+          ...categoryData,
+          isActive: true,
+        });
+        const saved = await this.categoryRepository.save(category);
+        savedCategories.push(saved);
+      }
+    }
+
+    return {
+      success: true,
+      message: `Seeded ${savedCategories.length} categories`,
+      data: savedCategories,
+    };
+  }
+
   async getCategoryItems(categoryId: string, searchParams: SearchItemsDto = {}) {
     // Use the existing items service with category filter
     const searchDto = { ...searchParams, category: categoryId };

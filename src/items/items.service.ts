@@ -1118,4 +1118,78 @@ export class ItemsService {
       hasMore,
     };
   }
+
+  /**
+   * Seed test items for development
+   */
+  async seedItems() {
+    const categories = await this.categoryRepository.find();
+    if (categories.length === 0) {
+      throw new Error('No categories found. Please seed categories first.');
+    }
+
+    const sampleItems = [
+      {
+        title: 'MacBook Pro 2023',
+        description: 'Like new MacBook Pro with M2 chip, 16GB RAM, 512GB SSD. Perfect for students.',
+        price: 1500,
+        condition: 'Like New',
+        category: 'Electronics',
+      },
+      {
+        title: 'Calculus Textbook',
+        description: 'Stewart Calculus 8th Edition. Excellent condition, no highlighting.',
+        price: 50,
+        condition: 'Good',
+        category: 'Books',
+      },
+      {
+        title: 'Desk Chair',
+        description: 'Ergonomic office chair, perfect for studying. Adjustable height.',
+        price: 80,
+        condition: 'Good',
+        category: 'Furniture',
+      },
+      {
+        title: 'Basketball',
+        description: 'Official size basketball, barely used.',
+        price: 25,
+        condition: 'Like New',
+        category: 'Sports',
+      },
+      {
+        title: 'Winter Jacket',
+        description: 'Warm winter jacket, size M. Great for cold weather.',
+        price: 60,
+        condition: 'Good',
+        category: 'Clothing',
+      },
+    ];
+
+    const savedItems = [];
+    for (const itemData of sampleItems) {
+      const category = categories.find(cat => cat.name === itemData.category);
+      if (category) {
+        const item = this.itemsRepository.create({
+          title: itemData.title,
+          description: itemData.description,
+          price: itemData.price,
+          condition: itemData.condition,
+          category: category.name,
+          sellerId: 1, // Default to first user
+          quantity: 1,
+          isSold: false,
+          isActive: true,
+        });
+        const saved = await this.itemsRepository.save(item);
+        savedItems.push(saved);
+      }
+    }
+
+    return {
+      success: true,
+      message: `Seeded ${savedItems.length} items`,
+      data: savedItems,
+    };
+  }
 }
