@@ -80,27 +80,28 @@ export class EmailService {
     await this.sendEmail(email, subject, html);
   }
 
-  async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
-    const subject = 'Welcome to XMarket!';
-    
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Welcome to XMarket, ${firstName}!</h2>
-        <p>Thank you for joining our university marketplace community.</p>
-        <p>You can now:</p>
-        <ul>
-          <li>Browse and buy items from other students</li>
-          <li>List your own items for sale</li>
-          <li>Connect with students at your university</li>
-        </ul>
-        <p>Happy trading!</p>
-        <hr style="margin: 30px 0;">
-        <p style="color: #666; font-size: 12px;">
-          This is an automated email from XMarket.
-        </p>
-      </div>
-    `;
+  // COMMENTED OUT - Welcome email disabled
+  // async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
+  //   const subject = 'Welcome to XMarket!';
+  //   
+  //   const html = `
+  //     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  //       <h2 style="color: #333;">Welcome to XMarket, ${firstName}!</h2>
+  //       <p>Thank you for joining our university marketplace community.</p>
+  //       <p>You can now:</p>
+  //       <ul>
+  //         <li>Browse and buy items from other students</li>
+  //         <li>List your own items for sale</li>
+  //         <li>Connect with students at your university</li>
+  //       </ul>
+  //       <p>Happy trading!</p>
+  //       <hr style="margin: 30px 0;">
+  //       <p style="color: #666; font-size: 12px;">
+  //         This is an automated email from XMarket.
+  //       </p>
+  //     </div>
+  //   `;
 
-    await this.sendEmail(email, subject, html);
-  }
+  //   await this.sendEmail(email, subject, html);
+  // }
 }
