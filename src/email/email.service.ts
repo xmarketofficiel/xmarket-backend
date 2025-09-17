@@ -1,25 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter;
+  private resend: Resend;
 
   constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get('SMTP_HOST'),
-      port: parseInt(this.configService.get('SMTP_PORT')),
-      secure: this.configService.get('SMTP_SECURE') === 'true',
-      auth: {
-        user: this.configService.get('SMTP_USER'),
-        pass: this.configService.get('SMTP_PASS'),
-      },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
+    const apiKey = this.configService.get('RESEND_API_KEY');
+    if (apiKey && apiKey !== 'your-resend-api-key-here') {
+      this.resend = new Resend(apiKey);
+      this.logger.log('✅ Resend client initialized');
+    } else {
+      this.logger.warn('⚠️ Resend API key not configured');
+    }
   }
 
   // Overloaded method to support both calling patterns
@@ -41,16 +36,21 @@ export class EmailService {
         emailData = toOrOptions;
       }
 
-      await this.transporter.sendMail({
+      if (!this.resend) {
+        throw new Error('Resend client not initialized. Check RESEND_API_KEY.');
+      }
+
+      const result = await this.resend.emails.send({
         from: `${this.configService.get('FROM_NAME')} <${this.configService.get('FROM_EMAIL')}>`,
         to: emailData.to,
         subject: emailData.subject,
         html: emailData.html,
         replyTo: this.configService.get('REPLY_TO'),
       });
-      this.logger.log(`Email sent to ${emailData.to}`);
+
+      this.logger.log(`✅ Email sent to ${emailData.to} via Resend. ID: ${result.data?.id}`);
     } catch (error) {
-      this.logger.error(`Failed to send email to ${typeof toOrOptions === 'string' ? toOrOptions : toOrOptions.to}:`, error);
+      this.logger.error(`❌ Failed to send email to ${typeof toOrOptions === 'string' ? toOrOptions : toOrOptions.to}:`, error);
       throw error;
     }
   }
