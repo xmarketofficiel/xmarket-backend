@@ -32,12 +32,22 @@ export class CategoriesService {
 
   async seedCategories() {
     const categories = [
-      { name: 'Electronics', icon: '📱', description: 'Phones, laptops, gadgets' },
+      { name: 'Electronics', icon: '📱', description: 'Phones, laptops, gadgets & technology' },
       { name: 'Books', icon: '📚', description: 'Textbooks, novels, academic materials' },
-      { name: 'Clothing', icon: '👕', description: 'Fashion, accessories, shoes' },
-      { name: 'Furniture', icon: '🪑', description: 'Tables, chairs, storage' },
-      { name: 'Sports', icon: '⚽', description: 'Equipment, gear, accessories' },
-      { name: 'Other', icon: '📦', description: 'Miscellaneous items' },
+      { name: 'Clothing', icon: '👕', description: 'Fashion, accessories, shoes & apparel' },
+      { name: 'Furniture', icon: '🪑', description: 'Tables, chairs, storage & home decor' },
+      { name: 'Sports', icon: '⚽', description: 'Equipment, gear, fitness & outdoor activities' },
+      { name: 'Transportation', icon: '🚗', description: 'Bikes, scooters, car parts & vehicle accessories' },
+      { name: 'Health & Beauty', icon: '💄', description: 'Cosmetics, skincare, wellness products' },
+      { name: 'Art & Crafts', icon: '🎨', description: 'Art supplies, crafts & creative materials' },
+      { name: 'Music & Instruments', icon: '🎵', description: 'Musical instruments & audio equipment' },
+      { name: 'Home & Garden', icon: '🏡', description: 'Home essentials, garden supplies & tools' },
+      { name: 'Toys & Games', icon: '🎲', description: 'Toys, board games & entertainment' },
+      { name: 'Pet Supplies', icon: '🐾', description: 'Pet food, toys, accessories & care items' },
+      { name: 'Office Supplies', icon: '📋', description: 'Office equipment, stationery & workspace items' },
+      { name: 'Food & Beverages', icon: '🍕', description: 'Food, drinks & kitchen essentials' },
+      { name: 'Services', icon: '🔧', description: 'Tutoring, repair, cleaning & other services' },
+      { name: 'Other', icon: '📦', description: 'Miscellaneous items not fitting other categories' },
     ];
 
     const savedCategories = [];

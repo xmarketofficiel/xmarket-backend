@@ -325,24 +325,46 @@ export class ItemsService {
         uploadResults.push(uploadResult);
       }
 
-      // Create database records with both Cloudinary and Spaces URLs
-      const images = uploadResults.map((result, index) => {
-        const imageRecord = {
-          itemId,
-          // Primary storage (Cloudinary)
-          cloudinaryUrl: result.recommendedUrl,
-          cloudinaryPublicId: result.primary.publicId,
-          // Backup storage (DigitalOcean Spaces)
-          spacesUrl: result.backup.spacesUrl,
-          spacesKey: result.backup.spacesKey,
-          // Legacy support
-          imageUrl: result.recommendedUrl,
-          publicId: result.primary.publicId,
-          imageOrder: existingImages + index,
-        };
-        
-        return this.itemImagesRepository.create(imageRecord);
+      // Check for existing images with the same public ID to prevent duplicates
+      const existingPublicIds = await this.itemImagesRepository.find({
+        where: { itemId },
+        select: ['cloudinaryPublicId']
       });
+      const existingPublicIdSet = new Set(
+        existingPublicIds
+          .map(img => img.cloudinaryPublicId)
+          .filter(Boolean)
+      );
+
+      // Create database records with both Cloudinary and Spaces URLs
+      const images = uploadResults
+        .filter((result, index) => {
+          // Skip if this public ID already exists
+          if (result.primary.publicId && existingPublicIdSet.has(result.primary.publicId)) {
+            console.warn(`Skipping duplicate image with public ID: ${result.primary.publicId}`);
+            return false;
+          }
+          return true;
+        })
+        .map((result, index) => {
+          const imageRecord = {
+            itemId,
+            // Primary storage (Cloudinary)
+            cloudinaryUrl: result.recommendedUrl,
+            cloudinaryPublicId: result.primary.publicId,
+            // Backup storage (DigitalOcean Spaces)
+            spacesUrl: result.backup.spacesUrl,
+            spacesKey: result.backup.spacesKey,
+            // Image variants (thumbnail, small, medium, large)
+            imageVariants: result.variants || {},
+            // Legacy support
+            imageUrl: result.recommendedUrl,
+            publicId: result.primary.publicId,
+            imageOrder: existingImages + index,
+          };
+          
+          return this.itemImagesRepository.create(imageRecord);
+        });
 
       const savedImages = await this.itemImagesRepository.save(images);
       
@@ -367,15 +389,59 @@ export class ItemsService {
     }
 
     try {
-      // Upload all images to Cloudinary with backend processing (using legacy compatibility method)
-      const uploadResults = await this.cloudinaryService.uploadMultipleImagesLegacy(files, `marketplace-items/item-${itemId}`);
+      // Upload images to both services with variants (for admin uploads)
+      const uploadResults = [];
       
-      // Create database records
-      const images = uploadResults.map((result, index) => 
-        this.itemImagesRepository.create({
-          itemId,
-          imageUrl: result.url,
-          publicId: result.publicId,
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Use dual storage service for admin item images too
+        const uploadResult = await this.dualImageService.uploadImageToBothServices(
+          file.buffer,
+          0, // Admin user ID (could be made dynamic)
+          'item',
+          file.originalname,
+          itemId
+        );
+        
+        uploadResults.push(uploadResult);
+      }
+
+      // Check for existing images with the same public ID to prevent duplicates
+      const existingPublicIds = await this.itemImagesRepository.find({
+        where: { itemId },
+        select: ['cloudinaryPublicId']
+      });
+      const existingPublicIdSet = new Set(
+        existingPublicIds
+          .map(img => img.cloudinaryPublicId)
+          .filter(Boolean)
+      );
+
+      // Create database records with variants
+      const images = uploadResults
+        .filter((result, index) => {
+          // Skip if this public ID already exists
+          if (result.primary.publicId && existingPublicIdSet.has(result.primary.publicId)) {
+            console.warn(`Skipping duplicate admin image with public ID: ${result.primary.publicId}`);
+            return false;
+          }
+          return true;
+        })
+        .map((result, index) => 
+          this.itemImagesRepository.create({
+            itemId,
+            // Primary storage (Cloudinary)
+            cloudinaryUrl: result.recommendedUrl,
+            cloudinaryPublicId: result.primary.publicId,
+            // Backup storage (DigitalOcean Spaces)
+            spacesUrl: result.backup.spacesUrl,
+            spacesKey: result.backup.spacesKey,
+            // Image variants (thumbnail, small, medium, large)
+          imageVariants: result.variants || {},
+          // Legacy support
+          imageUrl: result.recommendedUrl,
+          publicId: result.primary.publicId,
           imageOrder: existingImages + index,
         })
       );
@@ -922,13 +988,13 @@ export class ItemsService {
   }
 
   /**
-   * Get pending purchase confirmations for a user (buyer waiting for seller confirmation)
+   * Get pending purchase confirmations for a user (buyer needs to confirm their interest)
    */
   async getPendingConfirmations(userId: number): Promise<ItemPurchase[]> {
     return await this.itemPurchasesRepository.find({
       where: { 
         buyerId: userId, 
-        status: PurchaseStatus.BUYER_CONFIRMED 
+        status: PurchaseStatus.PENDING 
       },
       relations: ['item', 'item.images', 'item.seller'],
       order: { createdAt: 'DESC' }
