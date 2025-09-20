@@ -31,8 +31,11 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto & { isVerified?: boolean }): Promise<User> {
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    // Normalize email to lowercase for consistent storage
+    const normalizedEmail = createUserDto.email.toLowerCase().trim();
     const user = this.usersRepository.create({
       ...createUserDto,
+      email: normalizedEmail, // Store normalized email
       passwordHash: hashedPassword,
       isVerified: createUserDto.isVerified || false,
     });
@@ -52,7 +55,9 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | undefined> {
-    return this.usersRepository.findOne({ where: { email } });
+    // Normalize email to lowercase for consistent lookup
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.usersRepository.findOne({ where: { email: normalizedEmail } });
   }
 
   async updateLastLogin(userId: number): Promise<void> {

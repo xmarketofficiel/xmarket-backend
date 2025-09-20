@@ -325,24 +325,46 @@ export class ItemsService {
         uploadResults.push(uploadResult);
       }
 
-      // Create database records with both Cloudinary and Spaces URLs
-      const images = uploadResults.map((result, index) => {
-        const imageRecord = {
-          itemId,
-          // Primary storage (Cloudinary)
-          cloudinaryUrl: result.recommendedUrl,
-          cloudinaryPublicId: result.primary.publicId,
-          // Backup storage (DigitalOcean Spaces)
-          spacesUrl: result.backup.spacesUrl,
-          spacesKey: result.backup.spacesKey,
-          // Legacy support
-          imageUrl: result.recommendedUrl,
-          publicId: result.primary.publicId,
-          imageOrder: existingImages + index,
-        };
-        
-        return this.itemImagesRepository.create(imageRecord);
+      // Check for existing images with the same public ID to prevent duplicates
+      const existingPublicIds = await this.itemImagesRepository.find({
+        where: { itemId },
+        select: ['cloudinaryPublicId']
       });
+      const existingPublicIdSet = new Set(
+        existingPublicIds
+          .map(img => img.cloudinaryPublicId)
+          .filter(Boolean)
+      );
+
+      // Create database records with both Cloudinary and Spaces URLs
+      const images = uploadResults
+        .filter((result, index) => {
+          // Skip if this public ID already exists
+          if (result.primary.publicId && existingPublicIdSet.has(result.primary.publicId)) {
+            console.warn(`Skipping duplicate image with public ID: ${result.primary.publicId}`);
+            return false;
+          }
+          return true;
+        })
+        .map((result, index) => {
+          const imageRecord = {
+            itemId,
+            // Primary storage (Cloudinary)
+            cloudinaryUrl: result.recommendedUrl,
+            cloudinaryPublicId: result.primary.publicId,
+            // Backup storage (DigitalOcean Spaces)
+            spacesUrl: result.backup.spacesUrl,
+            spacesKey: result.backup.spacesKey,
+            // Image variants (thumbnail, small, medium, large)
+            imageVariants: result.variants || {},
+            // Legacy support
+            imageUrl: result.recommendedUrl,
+            publicId: result.primary.publicId,
+            imageOrder: existingImages + index,
+          };
+          
+          return this.itemImagesRepository.create(imageRecord);
+        });
 
       const savedImages = await this.itemImagesRepository.save(images);
       
@@ -367,15 +389,59 @@ export class ItemsService {
     }
 
     try {
-      // Upload all images to Cloudinary with backend processing (using legacy compatibility method)
-      const uploadResults = await this.cloudinaryService.uploadMultipleImagesLegacy(files, `marketplace-items/item-${itemId}`);
+      // Upload images to both services with variants (for admin uploads)
+      const uploadResults = [];
       
-      // Create database records
-      const images = uploadResults.map((result, index) => 
-        this.itemImagesRepository.create({
-          itemId,
-          imageUrl: result.url,
-          publicId: result.publicId,
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Use dual storage service for admin item images too
+        const uploadResult = await this.dualImageService.uploadImageToBothServices(
+          file.buffer,
+          0, // Admin user ID (could be made dynamic)
+          'item',
+          file.originalname,
+          itemId
+        );
+        
+        uploadResults.push(uploadResult);
+      }
+
+      // Check for existing images with the same public ID to prevent duplicates
+      const existingPublicIds = await this.itemImagesRepository.find({
+        where: { itemId },
+        select: ['cloudinaryPublicId']
+      });
+      const existingPublicIdSet = new Set(
+        existingPublicIds
+          .map(img => img.cloudinaryPublicId)
+          .filter(Boolean)
+      );
+
+      // Create database records with variants
+      const images = uploadResults
+        .filter((result, index) => {
+          // Skip if this public ID already exists
+          if (result.primary.publicId && existingPublicIdSet.has(result.primary.publicId)) {
+            console.warn(`Skipping duplicate admin image with public ID: ${result.primary.publicId}`);
+            return false;
+          }
+          return true;
+        })
+        .map((result, index) => 
+          this.itemImagesRepository.create({
+            itemId,
+            // Primary storage (Cloudinary)
+            cloudinaryUrl: result.recommendedUrl,
+            cloudinaryPublicId: result.primary.publicId,
+            // Backup storage (DigitalOcean Spaces)
+            spacesUrl: result.backup.spacesUrl,
+            spacesKey: result.backup.spacesKey,
+            // Image variants (thumbnail, small, medium, large)
+          imageVariants: result.variants || {},
+          // Legacy support
+          imageUrl: result.recommendedUrl,
+          publicId: result.primary.publicId,
           imageOrder: existingImages + index,
         })
       );
@@ -629,83 +695,6 @@ export class ItemsService {
     await this.itemReportsRepository.save(report);
   }
 
-  async seedItems(): Promise<{ success: boolean; message: string }> {
-    // Create a test user with a simple password for testing
-    // In production, this would be properly hashed
-    const testUser = await this.itemsRepository.manager.query(
-      `INSERT INTO users (full_name, email, whatsapp_number, password_hash, is_verified) 
-       VALUES ($1, $2, $3, $4, $5) 
-       ON CONFLICT (email) DO UPDATE SET 
-         password_hash = $4,
-         is_verified = $5,
-         full_name = $1
-       RETURNING id`,
-      ['Test User', 'test@example.com', '+1234567890', '$2a$10$6MiAlfPlTiJ9JhhFRYSoQu3wQKaW4xeSEwgZaPx1CcWrHJvKtu/Ra', true] // password123
-    );
-
-    const userId = testUser[0]?.id || 1;
-
-    // Get categories
-    const categories = await this.itemsRepository.manager.query('SELECT id FROM categories LIMIT 6');
-    
-    const sampleItems = [
-      {
-        title: 'MacBook Pro 13" 2023',
-        description: 'Excellent condition MacBook Pro with M2 chip, 256GB storage. Perfect for students and professionals.',
-        price: 1299.99,
-        category: categories[0]?.id || 'electronics',
-        condition: 'excellent',
-        sellerId: userId,
-      },
-      {
-        title: 'Organic Chemistry Textbook',
-        description: 'Latest edition organic chemistry textbook. Used for one semester, great condition.',
-        price: 89.50,
-        category: categories[1]?.id || 'books',
-        condition: 'good',
-        sellerId: userId,
-      },
-      {
-        title: 'Gaming Chair',
-        description: 'Comfortable ergonomic gaming chair with lumbar support. Black with RGB lighting.',
-        price: 199.99,
-        category: categories[2]?.id || 'furniture',
-        condition: 'good',
-        sellerId: userId,
-      },
-      {
-        title: 'Nike Air Max Sneakers',
-        description: 'Size 9 Nike Air Max sneakers in great condition. Worn only a few times.',
-        price: 75.00,
-        category: categories[3]?.id || 'clothing',
-        condition: 'excellent',
-        sellerId: userId,
-      },
-      {
-        title: 'iPhone 14',
-        description: 'Unlocked iPhone 14 in space gray. 128GB storage, comes with original box and charger.',
-        price: 649.99,
-        category: categories[0]?.id || 'electronics',
-        condition: 'like_new',
-        sellerId: userId,
-      },
-      {
-        title: 'Calculus Study Guide',
-        description: 'Comprehensive calculus study guide with practice problems and solutions.',
-        price: 25.00,
-        category: categories[1]?.id || 'books',
-        condition: 'good',
-        sellerId: userId,
-      },
-    ];
-
-    // Insert items
-    for (const itemData of sampleItems) {
-      await this.itemsRepository.save(itemData);
-    }
-
-    return { success: true, message: `${sampleItems.length} test items created successfully` };
-  }
 
   // ===============================
   // PURCHASE MANAGEMENT METHODS
@@ -999,13 +988,13 @@ export class ItemsService {
   }
 
   /**
-   * Get pending purchase confirmations for a user (buyer waiting for seller confirmation)
+   * Get pending purchase confirmations for a user (buyer needs to confirm their interest)
    */
   async getPendingConfirmations(userId: number): Promise<ItemPurchase[]> {
     return await this.itemPurchasesRepository.find({
       where: { 
         buyerId: userId, 
-        status: PurchaseStatus.BUYER_CONFIRMED 
+        status: PurchaseStatus.PENDING 
       },
       relations: ['item', 'item.images', 'item.seller'],
       order: { createdAt: 'DESC' }
@@ -1193,6 +1182,80 @@ export class ItemsService {
       limit,
       totalPages,
       hasMore,
+    };
+  }
+
+  /**
+   * Seed test items for development
+   */
+  async seedItems() {
+    const categories = await this.categoryRepository.find();
+    if (categories.length === 0) {
+      throw new Error('No categories found. Please seed categories first.');
+    }
+
+    const sampleItems = [
+      {
+        title: 'MacBook Pro 2023',
+        description: 'Like new MacBook Pro with M2 chip, 16GB RAM, 512GB SSD. Perfect for students.',
+        price: 1500,
+        condition: 'Like New',
+        category: 'Electronics',
+      },
+      {
+        title: 'Calculus Textbook',
+        description: 'Stewart Calculus 8th Edition. Excellent condition, no highlighting.',
+        price: 50,
+        condition: 'Good',
+        category: 'Books',
+      },
+      {
+        title: 'Desk Chair',
+        description: 'Ergonomic office chair, perfect for studying. Adjustable height.',
+        price: 80,
+        condition: 'Good',
+        category: 'Furniture',
+      },
+      {
+        title: 'Basketball',
+        description: 'Official size basketball, barely used.',
+        price: 25,
+        condition: 'Like New',
+        category: 'Sports',
+      },
+      {
+        title: 'Winter Jacket',
+        description: 'Warm winter jacket, size M. Great for cold weather.',
+        price: 60,
+        condition: 'Good',
+        category: 'Clothing',
+      },
+    ];
+
+    const savedItems = [];
+    for (const itemData of sampleItems) {
+      const category = categories.find(cat => cat.name === itemData.category);
+      if (category) {
+        const item = this.itemsRepository.create({
+          title: itemData.title,
+          description: itemData.description,
+          price: itemData.price,
+          condition: itemData.condition,
+          category: category.name,
+          sellerId: 1, // Default to first user
+          quantity: 1,
+          isSold: false,
+          isActive: true,
+        });
+        const saved = await this.itemsRepository.save(item);
+        savedItems.push(saved);
+      }
+    }
+
+    return {
+      success: true,
+      message: `Seeded ${savedItems.length} items`,
+      data: savedItems,
     };
   }
 }

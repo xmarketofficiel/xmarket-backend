@@ -42,6 +42,9 @@ export class ItemImage {
   @Column({ name: 'original_filename', nullable: true })
   originalFilename: string;
 
+  @Column({ name: 'image_variants', type: 'json', nullable: true })
+  imageVariants: { [key: string]: string };
+
   @CreateDateColumn({ name: 'uploaded_at' })
   uploadedAt: Date;
 
