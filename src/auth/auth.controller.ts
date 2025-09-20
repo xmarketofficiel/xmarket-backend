@@ -105,6 +105,13 @@ export class AuthController {
     return {
       message: 'Admin login successful',
       user: result.user,
+      token: result.accessToken,
+      success: true,
+      status: 200,
+      data: {
+        user: result.user,
+        token: result.accessToken
+      }
     };
   }
 
