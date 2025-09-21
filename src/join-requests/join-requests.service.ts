@@ -6,6 +6,7 @@ import { JoinRequestStatus } from './enums/join-request-status.enum';
 import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from './dto/update-join-request.dto';
 import { EmailService } from '../email/email.service';
+import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
 
 @Injectable()
 export class JoinRequestsService {
@@ -25,7 +26,13 @@ export class JoinRequestsService {
       throw new ConflictException('A request with this email already exists');
     }
 
-    const joinRequest = this.joinRequestsRepository.create(createJoinRequestDto);
+    // Normalize phone number before saving
+    const normalizedPhone = normalizeMoroccanPhone(createJoinRequestDto.whatsappNumber);
+
+    const joinRequest = this.joinRequestsRepository.create({
+      ...createJoinRequestDto,
+      whatsappNumber: normalizedPhone
+    });
     return this.joinRequestsRepository.save(joinRequest);
   }
 
