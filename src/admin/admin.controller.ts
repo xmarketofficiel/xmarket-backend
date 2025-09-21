@@ -202,11 +202,18 @@ export class AdminController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('me')
   async getMe(@CurrentUser() user: any) {
-    // Return current admin user info
+    // Return current admin user info in consistent API format
     return {
-      id: user.id,
-      email: user.email,
-      isAdmin: user.isAdmin
+      success: true,
+      status: 200,
+      message: 'Admin profile retrieved successfully',
+      data: {
+        id: user.id,
+        name: user.fullName || user.email, // Use fullName or fallback to email
+        email: user.email,
+        role: user.isAdmin ? 'admin' : 'user',
+        isAdmin: user.isAdmin
+      }
     };
   }
 
