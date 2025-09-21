@@ -13,6 +13,7 @@ import { Message } from "../messages/entities/message.entity";
 import { UserReport } from "../users/entities/user-report.entity";
 import { ItemReport } from "../items/entities/item-report.entity";
 import { UsersService } from "../users/users.service";
+import { normalizeMoroccanPhone } from "../common/validators/moroccan-phone.validator";
 import { ItemsService } from "../items/items.service";
 import * as bcrypt from "bcryptjs";
 import {
@@ -782,11 +783,12 @@ export class AdminService {
     }
 
     const hashedPassword = await bcrypt.hash(createAdminDto.password, 10);
+    const normalizedPhone = normalizeMoroccanPhone(createAdminDto.whatsappNumber);
 
     const admin = this.userRepository.create({
       fullName: createAdminDto.fullName,
       email: createAdminDto.email,
-      whatsappNumber: createAdminDto.whatsappNumber,
+      whatsappNumber: normalizedPhone,
       passwordHash: hashedPassword,
       role: createAdminDto.role as UserRole,
       status: UserStatus.ACTIVE,
@@ -807,11 +809,12 @@ export class AdminService {
     }
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    const normalizedPhone = normalizeMoroccanPhone(createUserDto.whatsappNumber);
 
     const user = this.userRepository.create({
       fullName: createUserDto.fullName,
       email: createUserDto.email,
-      whatsappNumber: createUserDto.whatsappNumber,
+      whatsappNumber: normalizedPhone,
       passwordHash: hashedPassword,
       role: UserRole.USER, // Regular users get 'user' role
       status: UserStatus.ACTIVE,

@@ -10,6 +10,7 @@ import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole, UserStatus } from '../users/entities/user.entity';
+import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -39,11 +40,11 @@ export class AuthService {
     const normalizedEmail = loginDto.email.toLowerCase().trim();
     const user = await this.validateUser(normalizedEmail, loginDto.password);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Identifiants invalides');
     }
 
     if (!user.isVerified) {
-      throw new UnauthorizedException('Please verify your email first');
+      throw new UnauthorizedException('Veuillez d\'abord vérifier votre adresse email');
     }
 
     // Check if user is suspended or banned
@@ -75,23 +76,24 @@ export class AuthService {
     // Normalize email to lowercase for consistent storage and comparison
     const normalizedEmail = email.toLowerCase().trim();
     
-    // Check email eligibility first
-    const eligibility = await this.joinRequestsService.checkEmailEligibility(normalizedEmail);
-    if (!eligibility.eligible) {
-      throw new UnauthorizedException('This email is not authorized to register. Please submit a join request first or use a valid university email.');
+    // Check if user already exists and is verified
+    const existingUser = await this.usersService.findByEmail(normalizedEmail);
+    if (existingUser && existingUser.isVerified) {
+      throw new ConflictException('Cette adresse email est déjà enregistrée. Veuillez vous connecter ou utiliser une autre adresse email.');
     }
     
-    // Check if user already exists
-    const existingUser = await this.usersService.findByEmail(normalizedEmail);
-    // Allow verified users to receive OTP for re-authentication or password reset
-    // Remove the ConflictException to enable OTP resending for verified users
+    // Check email eligibility
+    const eligibility = await this.joinRequestsService.checkEmailEligibility(normalizedEmail);
+    if (!eligibility.eligible) {
+      throw new UnauthorizedException('Cette adresse email n\'est pas autorisée à s\'inscrire. Veuillez soumettre une demande d\'adhésion ou utiliser une adresse email universitaire valide.');
+    }
 
     // Generate and send OTP
     const otp = await this.otpService.generateOtp(normalizedEmail, 'registration');
     await this.emailService.sendOtpEmail(normalizedEmail, otp, 'registration');
 
     return { 
-      message: 'OTP sent to your email',
+      message: 'Code de vérification envoyé à votre email',
       eligibilityReason: eligibility.reason
     };
   }
@@ -104,10 +106,10 @@ export class AuthService {
     
     const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'registration');
     if (!isValid) {
-      throw new BadRequestException('Invalid or expired OTP');
+      throw new BadRequestException('Code de vérification invalide ou expiré');
     }
 
-    return { message: 'OTP verified successfully', verified: true };
+    return { message: 'Code de vérification validé avec succès', verified: true };
   }
   private extractFullName(email: string): string | null {
     if (!email || typeof email !== 'string') return null;
@@ -136,11 +138,14 @@ export class AuthService {
 
     // Normalize email to lowercase for consistent storage
     const normalizedEmail = email.toLowerCase().trim();
+    
+    // Normalize phone number to international format (+212...)
+    const normalizedPhone = normalizeMoroccanPhone(whatsappNumber);
 
     // Check if user already exists and is verified
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser && existingUser.isVerified) {
-      throw new ConflictException('Email already registered and verified');
+      throw new ConflictException('Cette adresse email est déjà enregistrée et vérifiée.');
     }
 
     // Use the fullName provided by user, or extract from email as fallback
@@ -151,7 +156,7 @@ export class AuthService {
       email: normalizedEmail, // Store normalized email
       password,
       fullName: finalFullName,
-      whatsappNumber,
+      whatsappNumber: normalizedPhone, // Store normalized phone
     };
 
     let user;
