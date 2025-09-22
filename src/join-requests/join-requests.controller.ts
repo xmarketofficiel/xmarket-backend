@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JoinRequestsService } from './join-requests.service';
 import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from './dto/update-join-request.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
 
 @ApiTags('join-requests')
 @Controller('join-requests')
@@ -19,6 +21,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.create(createJoinRequestDto);
   }
 
+  @UseGuards( AdminGuard)
   @Get()
   @ApiOperation({ summary: 'Get all join requests (Admin only)' })
   @ApiResponse({ status: 200, description: 'List of all join requests' })
@@ -26,6 +29,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.findAll();
   }
 
+  @UseGuards( AdminGuard)
   @Get('pending')
   @ApiOperation({ summary: 'Get pending join requests (Admin only)' })
   @ApiResponse({ status: 200, description: 'List of pending join requests' })
@@ -33,6 +37,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.findPending();
   }
 
+  @UseGuards(AdminGuard)
   @Get('stats')
   @ApiOperation({ summary: 'Get join request statistics (Admin only)' })
   @ApiResponse({ status: 200, description: 'Join request statistics' })
@@ -40,6 +45,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.getStats();
   }
 
+  @UseGuards(AdminGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get a join request by ID (Admin only)' })
   @ApiResponse({ status: 200, description: 'Join request details' })
@@ -48,6 +54,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.findOne(id);
   }
 
+  @UseGuards(AdminGuard)
   @Patch(':id')
   @ApiOperation({ summary: 'Update a join request (Admin only)' })
   @ApiResponse({ status: 200, description: 'Join request updated successfully' })
@@ -56,6 +63,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.update(id, updateJoinRequestDto);
   }
 
+  @UseGuards(AdminGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a join request (Admin only)' })
   @ApiResponse({ status: 200, description: 'Join request deleted successfully' })
@@ -64,6 +72,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.remove(id);
   }
 
+  @UseGuards( AdminGuard)
   @Post(':id/approve')
   @ApiOperation({ summary: 'Approve a join request and send email (Admin only)' })
   @ApiResponse({ status: 200, description: 'Join request approved and email sent' })
@@ -75,6 +84,7 @@ export class JoinRequestsController {
     return this.joinRequestsService.approve(id, body.reviewedBy, body.reviewNotes);
   }
 
+  @UseGuards( AdminGuard)
   @Post(':id/reject')
   @ApiOperation({ summary: 'Reject a join request (Admin only)' })
   @ApiResponse({ status: 200, description: 'Join request rejected' })

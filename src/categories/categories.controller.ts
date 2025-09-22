@@ -7,13 +7,11 @@ import { Public } from '../common/decorators/public.decorator';
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
-  @Public()
   @Get()
   async getCategories() {
     return this.categoriesService.getCategories();
   }
 
-  @Public()
   @Get(':id/items')
   async getCategoryItems(
     @Param('id') categoryId: string,
@@ -22,9 +20,12 @@ export class CategoriesController {
     return this.categoriesService.getCategoryItems(categoryId, searchParams);
   }
 
-  @Public()
   @Post('seed')
   async seedCategories() {
+    // Only allow seeding in development environment
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Seeding is not allowed in production');
+    }
     return this.categoriesService.seedCategories();
   }
 }

@@ -75,7 +75,6 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Public()
   @ApiOperation({ summary: 'Get user public profile' })
   @ApiResponse({ status: 200, description: 'User public profile retrieved successfully' })
   async getUserProfile(@Param('id', ParseIntPipe) id: number) {
@@ -83,7 +82,6 @@ export class UsersController {
   }
 
   @Get(':id/items')
-  @Public()
   @ApiOperation({ summary: 'Get user items' })
   @ApiResponse({ status: 200, description: 'User items retrieved successfully' })
   async getUserItems(@Param('id', ParseIntPipe) id: number) {
