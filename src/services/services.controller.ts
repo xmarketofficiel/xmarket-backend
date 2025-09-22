@@ -28,7 +28,7 @@ import { CreateRatingDto } from './dto/create-rating.dto';
 import { PaginatedResponse } from './dto/pagination-response.dto';
 import { Service } from './entities/service.entity';
 import { Rating } from './entities/rating.entity';
-// import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('services')
 @Controller('services')
@@ -36,7 +36,7 @@ export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
 
   @Post()
-//   @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new service' })
   @ApiResponse({
@@ -85,7 +85,7 @@ export class ServicesController {
   }
 
   @Patch(':id')
-//   @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update service' })
   @ApiParam({ name: 'id', description: 'Service UUID' })
@@ -107,7 +107,7 @@ export class ServicesController {
   }
 
   @Delete(':id')
-//   @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete service (soft delete)' })
   @ApiParam({ name: 'id', description: 'Service UUID' })
@@ -124,7 +124,7 @@ export class ServicesController {
   }
 
   @Post(':id/ratings')
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Add rating to service' })
   @ApiParam({ name: 'id', description: 'Service UUID' })

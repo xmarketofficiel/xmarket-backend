@@ -1,13 +1,15 @@
-import { Controller, Get, Post, Body, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { InterestsService } from './interests.service';
 import { CreateInterestDto } from './dto/create-interest.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('interests')
 @Controller('interests')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 export class InterestsController {
   constructor(private readonly interestsService: InterestsService) {}
 

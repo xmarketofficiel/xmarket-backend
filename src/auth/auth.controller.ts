@@ -231,10 +231,13 @@ export class AuthController {
     return { eligible: true, message: 'Email is eligible for registration' };
   }
 
-  @Public()
   @Get('debug/cookies')
-  @ApiOperation({ summary: 'Debug endpoint to check received cookies' })
+  @ApiOperation({ summary: 'Debug endpoint to check received cookies - Development only' })
   async debugCookies(@Req() request: Request) {
+    // Only allow debug endpoint in development environment
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Debug endpoints are not available in production');
+    }
     return {
       cookies: request.cookies,
       headers: {

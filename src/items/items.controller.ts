@@ -15,7 +15,6 @@ import { User } from '../users/entities/user.entity';
 export class ItemsController {
   constructor(private readonly itemsService: ItemsService) {}
 
-  @Public()
   @Get()
   @ApiOperation({ summary: 'Get all items with pagination and filters' })
   @ApiResponse({ status: 200, description: 'Items retrieved successfully' })
@@ -28,7 +27,6 @@ export class ItemsController {
     };
   }
 
-  @Public()
   @Get('categories')
   @ApiOperation({ summary: 'Get all categories' })
   @ApiResponse({ status: 200, description: 'Categories retrieved successfully' })
@@ -68,7 +66,6 @@ export class ItemsController {
     return this.itemsService.getUserFavorites(user.id, page, limit);
   }
 
-  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get item by ID' })
   @ApiResponse({ status: 200, description: 'Item retrieved successfully' })
@@ -76,11 +73,14 @@ export class ItemsController {
     return this.itemsService.findOne(id);
   }
 
-  @Public()
   @Post('seed')
   @ApiOperation({ summary: 'Seed test items' })
   @ApiResponse({ status: 201, description: 'Items seeded successfully' })
   async seedItems() {
+    // Only allow seeding in development environment
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Seeding is not allowed in production');
+    }
     return this.itemsService.seedItems();
   }
 

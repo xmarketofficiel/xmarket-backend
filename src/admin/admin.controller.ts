@@ -39,32 +39,37 @@ import {
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('dashboard/stats')
   async getDashboardStats(): Promise<AdminDashboardStats> {
     return this.adminService.getDashboardStats();
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('analytics/overview')
   async getAnalyticsOverview() {
     return this.adminService.getAnalyticsOverview();
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('analytics/user-growth')
   async getUserGrowthAnalytics(@Query('days') days: number = 30) {
     return this.adminService.getUserGrowthAnalytics(days);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('analytics/revenue')
   async getRevenueAnalytics(@Query('days') days: number = 30) {
     return this.adminService.getRevenueAnalytics(days);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('analytics/item-performance')
   async getItemPerformanceAnalytics() {
     return this.adminService.getItemPerformanceAnalytics();
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('analytics/sellers')
   async getSellerAnalytics(
     @Query('page') page: number = 1,
@@ -73,6 +78,7 @@ export class AdminController {
     return this.adminService.getSellerAnalytics(page, limit);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('users')
   async getAllUsers(
     @Query('page') page: number = 1,
@@ -94,11 +100,13 @@ export class AdminController {
     return { ...result, page: pageNumber, limit: limitNumber };
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('users/:id')
   async getUserById(@Param('id', ParseIntPipe) id: number): Promise<AdminUserResponse> {
     return this.adminService.getUserById(id);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('users/:id/profile')
   async getUserProfile(@Param('id', ParseIntPipe) id: number): Promise<{
     user: AdminUserResponse;
@@ -116,6 +124,7 @@ export class AdminController {
     return this.adminService.getUserProfile(id);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Put('users/:id/status')
   async updateUserStatus(
     @Param('id', ParseIntPipe) id: number,
@@ -124,17 +133,20 @@ export class AdminController {
     return this.adminService.updateUserStatus(id, updateData);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Delete('users/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteUser(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.adminService.deleteUser(id);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('users')
   async createUser(@Body() createUserDto: CreateUserDto): Promise<AdminUserResponse> {
     return this.adminService.createUser(createUserDto);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('users/bulk-action')
   async bulkUserAction(@Body() bulkActionDto: BulkActionDto): Promise<{ success: number; failed: number }> {
     return this.adminService.bulkUserAction(bulkActionDto);
@@ -146,6 +158,7 @@ export class AdminController {
     return this.adminService.createAdmin(createAdminDto);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('items')
   async getAllItems(
     @Query('page') page: number = 1,
@@ -159,11 +172,13 @@ export class AdminController {
     return { ...result, page: pageNumber, limit: limitNumber };
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('items')
   async createItem(@Body() createItemDto: AdminCreateItemDto, @CurrentUser() currentAdmin: User): Promise<AdminItemResponse> {
     return this.adminService.createItem(createItemDto, currentAdmin.id);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Delete('items/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteItem(@Param('id', ParseIntPipe) id: number): Promise<void> {
@@ -179,6 +194,7 @@ export class AdminController {
     return this.adminService.updateItemStatus(id, updateItemStatusDto.isActive, updateItemStatusDto.reason);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('reports')
   async getAllReports(
     @Query('page') page: number = 1,
@@ -190,6 +206,7 @@ export class AdminController {
     return { ...result, page: pageNumber, limit: limitNumber };
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Put('reports/:id/status')
   async updateReportStatus(
     @Param('id') id: string,
@@ -218,16 +235,19 @@ export class AdminController {
   }
 
   // Category Management
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('categories')
   async getAllCategories() {
     return this.adminService.getAllCategories();
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('categories')
   async createCategory(@Body() createCategoryDto: { name: string; icon?: string; description?: string }) {
     return this.adminService.createCategory(createCategoryDto);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Put('categories/:id')
   async updateCategory(
     @Param('id') id: string,
@@ -236,12 +256,14 @@ export class AdminController {
     return this.adminService.updateCategory(id, updateCategoryDto);
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Delete('categories/:id')
   async deleteCategory(@Param('id') id: string) {
     return this.adminService.deleteCategory(id);
   }
 
   // Admin-specific item image upload endpoint
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('items/:id/images')
   @UseInterceptors(FilesInterceptor('images', 6, {
     fileFilter: (req, file, callback) => {

@@ -63,22 +63,25 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('University Marketplace API')
-    .setDescription('API for university marketplace application')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addCookieAuth('access_token')
-    .build();
-  
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
-
   const port = process.env.PORT || 3001;
+
+  // Swagger documentation - only in development
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('University Marketplace API')
+      .setDescription('API for university marketplace application')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addCookieAuth('access_token')
+      .build();
+    
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document);
+    console.log(`Swagger documentation: http://localhost:${port}/api`);
+  }
+
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger documentation: http://localhost:${port}/api`);
 }
 
 bootstrap().catch(error => {
