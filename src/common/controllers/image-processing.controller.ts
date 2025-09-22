@@ -1,7 +1,9 @@
-import { Controller, Post, UploadedFile, UseInterceptors, Get } from '@nestjs/common';
+import { Controller, Post, UploadedFile, UseInterceptors, Get, UseGuards } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageProcessingService } from '../services/image-processing.service';
 import { CloudinaryService, ImageUploadResult } from '../services/cloudinary.service';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { AdminGuard } from '../guards/admin.guard';
 
 @Controller('image-processing')
 export class ImageProcessingController {
@@ -10,6 +12,7 @@ export class ImageProcessingController {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('sizes')
   getImageSizes() {
     return {
@@ -18,6 +21,7 @@ export class ImageProcessingController {
     };
   }
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('test-upload')
   @UseInterceptors(FileInterceptor('image'))
   async testImageUpload(@UploadedFile() file: Express.Multer.File): Promise<{

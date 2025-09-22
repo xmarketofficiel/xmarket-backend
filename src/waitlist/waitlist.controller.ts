@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { WaitlistEmailService, CreateWaitlistEmailDto } from './waitlist-email.service';
 import { AdminGuard } from '../common/guards/admin.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
 
 @Controller('waitlist')
@@ -51,7 +52,7 @@ export class WaitlistController {
 
   // Admin-only endpoints
   @Get('admin/list')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async getAllEmails() {
     const emails = await this.waitlistEmailService.findAll();
     return {
@@ -61,13 +62,13 @@ export class WaitlistController {
   }
 
   @Get('admin/stats')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async getStats() {
     return this.waitlistEmailService.getStats();
   }
 
   @Post('admin/notify/:email')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async markAsNotified(@Param('email') email: string) {
     await this.waitlistEmailService.markAsNotified(email);
     return {
@@ -77,7 +78,7 @@ export class WaitlistController {
   }
 
   @Delete('admin/:id')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async remove(@Param('id') id: string) {
     await this.waitlistEmailService.remove(id);
     return {

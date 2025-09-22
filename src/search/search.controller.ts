@@ -18,7 +18,6 @@ import { Public } from '../common/decorators/public.decorator';
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
-  @Public()
   @Get('items')
   @ApiOperation({ summary: 'Search items' })
   @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
@@ -45,7 +44,6 @@ export class SearchController {
     };
   }
 
-  @Public()
   @Get('suggestions')
   @ApiOperation({ summary: 'Get search suggestions' })
   @ApiResponse({ status: 200, description: 'Search suggestions retrieved successfully' })
@@ -53,7 +51,6 @@ export class SearchController {
     return this.searchService.getSearchSuggestions(query);
   }
 
-  @Public()
   @Get('popular')
   @ApiOperation({ summary: 'Get popular searches' })
   @ApiResponse({ status: 200, description: 'Popular searches retrieved successfully' })
