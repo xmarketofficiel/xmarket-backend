@@ -80,18 +80,61 @@ export interface AdminReportResponse {
   createdAt: Date;
 }
 
-export interface CreateAdminDto {
+import { IsEmail, IsString, IsEnum, MinLength, IsNotEmpty } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsMoroccanPhone } from '../../common/validators/moroccan-phone.validator';
+
+export class CreateAdminDto {
+  @ApiProperty({ example: 'Admin User', description: 'Full name of the admin' })
+  @IsNotEmpty()
+  @IsString()
   fullName: string;
+
+  @ApiProperty({ example: 'admin@xmarket.ma', description: 'Admin email address' })
+  @IsEmail()
   email: string;
+
+  @ApiProperty({ 
+    example: '0612345678', 
+    description: 'Numéro WhatsApp marocain (Ex: 0612345678 ou +212612345678)' 
+  })
+  @IsMoroccanPhone({ 
+    message: 'Veuillez saisir un numéro de téléphone marocain valide (Ex: 0612345678 ou +212612345678)' 
+  })
   whatsappNumber: string;
+
+  @ApiProperty({ example: 'securepassword123', description: 'Admin password' })
+  @IsString()
+  @MinLength(8)
   password: string;
+
+  @ApiProperty({ example: 'admin', description: 'Admin role', enum: ['admin', 'super_admin'] })
+  @IsEnum(['admin', 'super_admin'])
   role: 'admin' | 'super_admin';
 }
 
-export interface CreateUserDto {
+export class CreateUserDto {
+  @ApiProperty({ example: 'John Doe', description: 'Full name of the user' })
+  @IsNotEmpty()
+  @IsString()
   fullName: string;
+
+  @ApiProperty({ example: 'john.doe@university.edu', description: 'User email address' })
+  @IsEmail()
   email: string;
+
+  @ApiProperty({ 
+    example: '0612345678', 
+    description: 'Numéro WhatsApp marocain (Ex: 0612345678 ou +212612345678)' 
+  })
+  @IsMoroccanPhone({ 
+    message: 'Veuillez saisir un numéro de téléphone marocain valide (Ex: 0612345678 ou +212612345678)' 
+  })
   whatsappNumber: string;
+
+  @ApiProperty({ example: 'userpassword123', description: 'User password' })
+  @IsString()
+  @MinLength(8)
   password: string;
 }
 
