@@ -105,7 +105,12 @@ export class JoinRequestsService {
     joinRequest.reviewNotes = reviewNotes;
     joinRequest.reviewedAt = new Date();
 
-    return this.joinRequestsRepository.save(joinRequest);
+    const updatedRequest = await this.joinRequestsRepository.save(joinRequest);
+    
+    // Send rejection email
+    await this.sendRejectionEmail(updatedRequest);
+    
+    return updatedRequest;
   }
 
   private async sendApprovalEmail(joinRequest: JoinRequest): Promise<void> {
@@ -169,6 +174,61 @@ export class JoinRequestsService {
     } catch (error) {
       console.error('Failed to send approval email:', error);
       // Don't throw error to prevent blocking the approval process
+    }
+  }
+
+  private async sendRejectionEmail(joinRequest: JoinRequest): Promise<void> {
+    try {
+      await this.emailService.sendEmail({
+        to: joinRequest.email,
+        subject: 'XMarket Join Request Update',
+        html: `
+          <div style="max-width: 600px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 600;">XMarket</h1>
+              <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">University Marketplace Platform</p>
+            </div>
+            
+            <div style="background: white; padding: 40px; border-left: 4px solid #ed8936;">
+              <h2 style="color: #2d3748; margin: 0 0 20px 0; font-size: 24px;">Join Request Update</h2>
+              
+              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Hello ${joinRequest.fullName},
+              </p>
+              
+              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Thank you for your interest in joining XMarket. After careful review, we're unable to approve your join request at this time.
+              </p>
+              
+              ${joinRequest.reviewNotes ? `
+                <div style="background: #fef5e7; padding: 20px; border-radius: 8px; border-left: 4px solid #ed8936; margin: 20px 0;">
+                  <h4 style="color: #2d3748; margin: 0 0 10px 0;">📝 Review Notes:</h4>
+                  <p style="color: #4a5568; margin: 0; font-style: italic;">${joinRequest.reviewNotes}</p>
+                </div>
+              ` : ''}
+              
+              <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h4 style="color: #2d3748; margin: 0 0 15px 0;">📧 What's Next?</h4>
+                <p style="color: #4a5568; margin: 0 0 10px 0;">• You can submit a new join request if your situation changes</p>
+                <p style="color: #4a5568; margin: 0 0 10px 0;">• Make sure to use your official university email address</p>
+                <p style="color: #4a5568; margin: 0;">• Contact our support team if you have questions</p>
+              </div>
+              
+              <p style="color: #718096; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+                If you believe this was an error or have questions, please contact our support team at support@xmarket.ma
+              </p>
+            </div>
+            
+            <div style="background: #2d3748; padding: 20px; text-align: center; color: #a0aec0; font-size: 12px;">
+              <p style="margin: 0;">© 2025 XMarket - University Marketplace Platform</p>
+              <p style="margin: 5px 0 0 0;">This email was sent regarding your join request status.</p>
+            </div>
+          </div>
+        `,
+      });
+    } catch (error) {
+      console.error('Failed to send rejection email:', error);
+      // Don't throw error to prevent blocking the rejection process
     }
   }
 
