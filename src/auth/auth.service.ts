@@ -12,6 +12,7 @@ import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole, UserStatus } from '../users/entities/user.entity';
 import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
 import * as bcrypt from 'bcryptjs';
+import { last } from 'rxjs';
 
 @Injectable()
 export class AuthService {
@@ -294,5 +295,113 @@ export class AuthService {
         profileImageUrl: user.profileImageUrl,
       },
     };
+  }
+
+  async verifyDiscord1337(verifyDto: any): Promise<any> {
+    const { code, email, loginName } = verifyDto;
+    
+    try {
+      const existingUser = await this.usersService.findByEmail(email);
+      if (existingUser && existingUser.isVerified) {
+        throw new ConflictException('the email address is already registered. Please log in or use a different email address.');
+      }
+      // Step 1: Exchange authorization code for access token
+      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: process.env.DISCORD_CLIENT_ID,
+          client_secret: process.env.DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: `${process.env.FRONTEND_URL}/auth/discord/callback`,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        throw new BadRequestException('Failed to exchange Discord authorization code');
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+
+      console.log('Access Token:', accessToken);
+      // Step 2: Get user information from Discord
+      const userResponse = await fetch('https://discord.com/api/users/@me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!userResponse.ok) {
+        throw new BadRequestException('Failed to fetch Discord user data');
+      }
+
+      const discordUser = await userResponse.json();
+      console.log('Discord User:', discordUser);
+
+      // Step 3: Get user's guild memberships
+      const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!guildsResponse.ok) {
+        throw new BadRequestException('Failed to fetch Discord guild memberships');
+      }
+
+      const guilds = await guildsResponse.json();
+      console.log('Guilds:', guilds);
+
+      // Step 4: Check if user is a member of 1337 Discord server
+      const guild1337Id = process.env.DISCORD_1337_GUILD_ID;
+      const is1337Member = guilds.some((guild: any) => guild.id === guild1337Id);
+
+      if (!is1337Member) {
+        throw new BadRequestException('You must be a member of the 1337 Discord server to register. Please join the server first.');
+      }
+
+      const discordUsername = discordUser.username?.toLowerCase();
+      
+      // Step 5: Verify email matches
+      if (email.split('@')[0].toLowerCase() !== discordUsername) {
+        throw new BadRequestException('The login associated with your Discord account does not match the email you entered.');
+      }
+      
+      const usernameMatches = discordUsername === loginName.toLowerCase();
+
+      if (!usernameMatches) {
+        throw new BadRequestException('The Discord username does not match the login name you entered. Please check your 1337 login name.');
+      }
+
+      // Step 7: All verifications passed
+      return {
+        verified: true,
+        user: {
+          id: discordUser.id,
+          username: discordUser.username,
+          discriminator: discordUser.discriminator,
+          email: discordUser.email,
+          avatar: discordUser.avatar,
+          avatar_url: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null,
+          global_name: discordUser.global_name,
+          is_guild_member: true,
+          guild_name: '1337 School'
+        },
+        message: 'Discord verification successful',
+      };
+
+    } catch (error) {
+      console.error('Discord verification error:', error);
+      
+      if (error instanceof BadRequestException || error instanceof ConflictException) {
+        throw error;
+      }
+      
+      throw new BadRequestException('Discord verification failed. Please try again.');
+    }
   }
 }

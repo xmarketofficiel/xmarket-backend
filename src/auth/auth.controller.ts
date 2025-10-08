@@ -8,6 +8,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyDiscord1337Dto } from './dto/verify-discord-1337.dto';
 import { CreateJoinRequestDto } from '../join-requests/dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from '../join-requests/dto/update-join-request.dto';
 import { JoinRequestsService } from '../join-requests/join-requests.service';
@@ -249,5 +250,13 @@ export class AuthController {
       environment: process.env.NODE_ENV,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Public()
+  @Post('discord/verify-1337')
+  @ApiOperation({ summary: 'Verify Discord 1337 server membership' })
+  @ApiResponse({ status: 200, description: 'Discord verification completed' })
+  async verifyDiscord1337(@Body() verifyDto: VerifyDiscord1337Dto) {
+    return this.authService.verifyDiscord1337(verifyDto);
   }
 }
