@@ -6,8 +6,23 @@ export class JoinRequest {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   fullName: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  firstName: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  lastName: string;
+
+  @Column({ type: 'varchar', length: 200 })
+  department: string;
+
+  @Column({ type: 'enum', enum: ['student', 'staff'] })
+  role: 'student' | 'staff';
+
+  @Column({ type: 'text' })
+  address: string;
 
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
