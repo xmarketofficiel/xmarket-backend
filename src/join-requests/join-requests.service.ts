@@ -30,7 +30,13 @@ export class JoinRequestsService {
     const normalizedPhone = normalizeMoroccanPhone(createJoinRequestDto.whatsappNumber);
 
     const joinRequest = this.joinRequestsRepository.create({
-      ...createJoinRequestDto,
+      firstName: createJoinRequestDto.firstName,
+      lastName: createJoinRequestDto.lastName,
+      fullName: createJoinRequestDto.fullName,
+      department: createJoinRequestDto.department,
+      role: createJoinRequestDto.role,
+      address: createJoinRequestDto.address,
+      email: createJoinRequestDto.email,
       whatsappNumber: normalizedPhone
     });
     return this.joinRequestsRepository.save(joinRequest);

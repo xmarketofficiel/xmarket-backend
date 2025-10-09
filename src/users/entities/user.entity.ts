@@ -22,8 +22,23 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'full_name' })
+  @Column({ name: 'full_name', nullable: true })
   fullName: string;
+
+  @Column({ name: 'first_name' })
+  firstName: string;
+
+  @Column({ name: 'last_name' })
+  lastName: string;
+
+  @Column()
+  department: string;
+
+  @Column({ type: 'enum', enum: ['student', 'staff'] })
+  userRole: 'student' | 'staff';
+
+  @Column()
+  address: string;
 
   @Column({ unique: true })
   email: string;

@@ -135,7 +135,17 @@ export class AuthService {
   }
 
   async completeRegistration(completeRegistrationDto: CompleteRegistrationDto) {
-    const { email, password, fullName, whatsappNumber } = completeRegistrationDto;
+    const { 
+      email, 
+      password, 
+      firstName, 
+      lastName, 
+      department, 
+      role, 
+      address, 
+      whatsappNumber,
+      fullName 
+    } = completeRegistrationDto;
 
     // Normalize email to lowercase for consistent storage
     const normalizedEmail = email.toLowerCase().trim();
@@ -149,15 +159,22 @@ export class AuthService {
       throw new ConflictException('Cette adresse email est déjà enregistrée et vérifiée.');
     }
 
-    // Use the fullName provided by user, or extract from email as fallback
-    const finalFullName = fullName || this.extractFullName(normalizedEmail) || 'User';
+    // Use provided names or legacy fullName as fallback
+    const finalFirstName = firstName || fullName?.split(' ')[0] || this.extractFullName(normalizedEmail) || 'User';
+    const finalLastName = lastName || fullName?.split(' ').slice(1).join(' ') || '';
+    const finalFullName = `${finalFirstName} ${finalLastName}`.trim();
     
     // Create or update user
     const userData = {
-      email: normalizedEmail, // Store normalized email
+      email: normalizedEmail,
       password,
-      fullName: finalFullName,
-      whatsappNumber: normalizedPhone, // Store normalized phone
+      firstName: finalFirstName,
+      lastName: finalLastName,
+      fullName: finalFullName, // Keep for backward compatibility
+      department,
+      userRole: role,
+      address,
+      whatsappNumber: normalizedPhone,
     };
 
     let user;
@@ -298,13 +315,9 @@ export class AuthService {
   }
 
   async verifyDiscord1337(verifyDto: any): Promise<any> {
-    const { code, email, loginName } = verifyDto;
+    const { code } = verifyDto;
     
     try {
-      const existingUser = await this.usersService.findByEmail(email);
-      if (existingUser && existingUser.isVerified) {
-        throw new ConflictException('the email address is already registered. Please log in or use a different email address.');
-      }
       // Step 1: Exchange authorization code for access token
       const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
         method: 'POST',
@@ -327,7 +340,6 @@ export class AuthService {
       const tokenData = await tokenResponse.json();
       const accessToken = tokenData.access_token;
 
-      console.log('Access Token:', accessToken);
       // Step 2: Get user information from Discord
       const userResponse = await fetch('https://discord.com/api/users/@me', {
         headers: {
@@ -364,20 +376,6 @@ export class AuthService {
         throw new BadRequestException('You must be a member of the 1337 Discord server to register. Please join the server first.');
       }
 
-      const discordUsername = discordUser.username?.toLowerCase();
-      
-      // Step 5: Verify email matches
-      if (email.split('@')[0].toLowerCase() !== discordUsername) {
-        throw new BadRequestException('The login associated with your Discord account does not match the email you entered.');
-      }
-      
-      const usernameMatches = discordUsername === loginName.toLowerCase();
-
-      if (!usernameMatches) {
-        throw new BadRequestException('The Discord username does not match the login name you entered. Please check your 1337 login name.');
-      }
-
-      // Step 7: All verifications passed
       return {
         verified: true,
         user: {
@@ -391,7 +389,7 @@ export class AuthService {
           is_guild_member: true,
           guild_name: '1337 School'
         },
-        message: 'Discord verification successful',
+        message: 'Discord verification successful! 1337 server membership verified.',
       };
 
     } catch (error) {
