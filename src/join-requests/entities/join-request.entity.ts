@@ -18,7 +18,7 @@ export class JoinRequest {
   @Column({ type: 'varchar', length: 200, nullable: true   })
   department: string;
 
-  @Column({ type: 'enum', enum: ['seller'] })
+  @Column({ type: 'enum', enum: ['seller'], nullable: true })
   userRole:  string; 'seller';
 
   @Column({ type: 'text' , nullable: true})
