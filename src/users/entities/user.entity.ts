@@ -34,7 +34,7 @@ export class User {
   @Column()
   department: string;
 
-  @Column({ type: 'enum', enum: ['student', 'staff'] })
+  @Column({ type: 'enum', enum: ['student', 'staff'] ,nullable: true})
   userRole: 'student' | 'staff';
 
   @Column()
