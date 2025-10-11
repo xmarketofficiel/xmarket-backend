@@ -9,19 +9,19 @@ export class JoinRequest {
   @Column({ type: 'varchar', length: 255, nullable: true })
   fullName: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   firstName: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   lastName: string;
 
-  @Column({ type: 'varchar', length: 200 })
+  @Column({ type: 'varchar', length: 200, nullable: true   })
   department: string;
 
   @Column({ type: 'enum', enum: ['seller'] })
   userRole:  string; 'seller';
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text' , nullable: true})
   address: string;
 
   @Column({ type: 'varchar', length: 255, unique: true })
