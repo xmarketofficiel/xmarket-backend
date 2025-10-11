@@ -18,8 +18,8 @@ export class JoinRequest {
   @Column({ type: 'varchar', length: 200 })
   department: string;
 
-  @Column({ type: 'enum', enum: ['student', 'staff'] })
-  role: 'student' | 'staff';
+  @Column({ type: 'enum', enum: ['seller'] })
+  userRole:  string; 'seller';
 
   @Column({ type: 'text' })
   address: string;

@@ -3,44 +3,44 @@
 
 -- Add new fields to users table
 ALTER TABLE users 
-ADD COLUMN firstName VARCHAR(100) DEFAULT NULL,
-ADD COLUMN lastName VARCHAR(100) DEFAULT NULL,
-ADD COLUMN department VARCHAR(200) DEFAULT NULL,
-ADD COLUMN role ENUM('student', 'staff') DEFAULT NULL,
-ADD COLUMN address TEXT DEFAULT NULL;
+ADD COLUMN IF NOT EXISTS first_name varchar(100),
+ADD COLUMN IF NOT EXISTS last_name varchar(100),
+ADD COLUMN IF NOT EXISTS department varchar(200),
+ADD COLUMN IF NOT EXISTS userRole varchar(50) DEFAULT 'student',
+ADD COLUMN IF NOT EXISTS address TEXT DEFAULT NULL;
 
 -- Add new fields to join_requests table  
 ALTER TABLE join_requests
-ADD COLUMN firstName VARCHAR(100) DEFAULT NULL,
-ADD COLUMN lastName VARCHAR(100) DEFAULT NULL,
-ADD COLUMN department VARCHAR(200) DEFAULT NULL,
-ADD COLUMN role ENUM('student', 'staff') DEFAULT NULL,
-ADD COLUMN address TEXT DEFAULT NULL;
+ADD COLUMN IF NOT EXISTS first_name VARCHAR(100) DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS last_name VARCHAR(100) DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS department VARCHAR(200) DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS userRole varchar(50) DEFAULT 'seller',
+ADD COLUMN IF NOT EXISTS address TEXT DEFAULT NULL;
 
 -- Update existing records to split fullName into firstName and lastName
 -- This handles existing data gracefully
 UPDATE users 
 SET 
-    firstName = SUBSTRING_INDEX(fullName, ' ', 1),
-    lastName = CASE 
-        WHEN LOCATE(' ', fullName) > 0 
-        THEN TRIM(SUBSTRING(fullName, LOCATE(' ', fullName) + 1))
+    first_name = SPLIT_PART(full_name, ' ', 1),
+    last_name = CASE 
+        WHEN POSITION(' ' IN full_name) > 0 
+        THEN TRIM(SUBSTRING(full_name FROM POSITION(' ' IN full_name) + 1))
         ELSE ''
     END
-WHERE fullName IS NOT NULL AND fullName != '';
+WHERE full_name IS NOT NULL AND full_name != '';
 
 UPDATE join_requests 
 SET 
-    firstName = SUBSTRING_INDEX(fullName, ' ', 1),
-    lastName = CASE 
-        WHEN LOCATE(' ', fullName) > 0 
-        THEN TRIM(SUBSTRING(fullName, LOCATE(' ', fullName) + 1))
+    first_name = SPLIT_PART("fullName", ' ', 1),
+    last_name = CASE 
+        WHEN POSITION(' ' IN "fullName") > 0 
+        THEN TRIM(SUBSTRING("fullName" FROM POSITION(' ' IN "fullName") + 1))
         ELSE ''
     END
-WHERE fullName IS NOT NULL AND fullName != '';
+WHERE "fullName" IS NOT NULL AND "fullName" != '';
 
--- Add indexes for better query performance
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_department ON users(department);
-CREATE INDEX idx_join_requests_role ON join_requests(role);
-CREATE INDEX idx_join_requests_department ON join_requests(department);
+-- Add indexes for better query performance (with IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS idx_users_userRole ON users(userRole);
+CREATE INDEX IF NOT EXISTS idx_users_department ON users(department);
+CREATE INDEX IF NOT EXISTS idx_join_requests_userRole ON join_requests(userRole);
+CREATE INDEX IF NOT EXISTS idx_join_requests_department ON join_requests(department);

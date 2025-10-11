@@ -7,6 +7,7 @@ import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from './dto/update-join-request.dto';
 import { EmailService } from '../email/email.service';
 import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
+import { UserRole } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class JoinRequestsService {
@@ -34,7 +35,7 @@ export class JoinRequestsService {
       lastName: createJoinRequestDto.lastName,
       fullName: createJoinRequestDto.fullName,
       department: createJoinRequestDto.department,
-      role: createJoinRequestDto.role,
+      userRole: createJoinRequestDto.role,
       address: createJoinRequestDto.address,
       email: createJoinRequestDto.email,
       whatsappNumber: normalizedPhone
