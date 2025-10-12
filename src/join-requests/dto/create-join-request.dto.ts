@@ -19,12 +19,12 @@ export class CreateJoinRequestDto {
   department: string;
 
   @ApiProperty({ 
-    example: 'student', 
+    example: 'seller', 
     description: 'Role of the user',
-    enum: ['student', 'staff']
+    enum: ['seller']
   })
-  @IsEnum(['student', 'staff'])
-  role: 'student' | 'staff';
+  @IsEnum(['seller']) 
+  role: 'seller';
 
   @ApiProperty({ example: '123 Main Street, City, Country', description: 'Address' })
   @IsNotEmpty()
