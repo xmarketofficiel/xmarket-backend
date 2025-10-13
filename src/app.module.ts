@@ -57,9 +57,17 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
         // Support for DATABASE_URL (with SSL) or individual DATABASE_* variables
         const databaseUrl = configService.get('DATABASE_URL');
         
-        if (databaseUrl) {
-          // Parse the DATABASE_URL to extract connection details
-          const url = new URL(databaseUrl);
+        if (databaseUrl && databaseUrl.trim() !== '') {
+          // Validate and parse the DATABASE_URL
+          let url: URL;
+          try {
+            url = new URL(databaseUrl);
+          } catch (error) {
+            throw new Error(
+              `Invalid DATABASE_URL format: ${error.message}. ` +
+              `Expected format: postgresql://username:password@host:port/database`
+            );
+          }
           return {
             type: 'postgres',
             host: url.hostname,
