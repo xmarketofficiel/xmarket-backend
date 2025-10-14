@@ -27,6 +27,7 @@ async function bootstrap() {
     'http://localhost:3000', // Default frontend port (marketplace)
     'http://localhost:3002', // Alternative frontend port (admin panel)
     'http://localhost:3003', // Admin panel (dev port)
+    'https://xmarket-frontend.vercel.app', // Production frontend
   ];
 
   // Add production frontend URLs from environment variables
