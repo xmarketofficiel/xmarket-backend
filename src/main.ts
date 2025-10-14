@@ -9,6 +9,12 @@ import * as cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Normalize paths - remove double slashes
+  app.use((req, res, next) => {
+    req.url = req.url.replace(/\/+/g, '/');
+    next();
+  });
+
   // Cookie parser middleware
   app.use(cookieParser());
 
