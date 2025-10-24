@@ -94,8 +94,8 @@ export class DualImageService {
     this.logger.log(`🚀 Starting dual upload for user ${userId}, category: ${category}, filename: ${filename}`);
 
     try {
-      // Upload original to Cloudinary (with their built-in transformations)
-      this.logger.log('📤 Starting Cloudinary upload...');
+      // Upload to Cloudinary FIRST (fast, primary storage)
+      this.logger.log('📤 Starting Cloudinary upload (primary)...');
       const cloudinaryResult = await this.uploadToCloudinary(
         imageBuffer,
         userId,
@@ -103,31 +103,36 @@ export class DualImageService {
         filename,
         itemId
       );
+      
       response.primary = cloudinaryResult;
-      this.logger.log(`✅ Cloudinary upload result: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
+      this.logger.log(`✅ Cloudinary upload: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
 
-      // Resize and upload multiple variants to DO Spaces
-      this.logger.log('📤 Starting DigitalOcean Spaces upload...');
-      const spacesResult = await this.resizeAndUploadToSpaces(
-        imageBuffer,
-        userId,
-        category,
-        filename,
-        itemId
-      );
-      response.backup = spacesResult;
-      this.logger.log(`✅ Spaces upload result: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
+      // Set recommended URL immediately from Cloudinary
+      response.recommendedUrl = cloudinaryResult.cloudinaryUrl || '';
 
-      // Set recommended URLs
-      response.recommendedUrl = cloudinaryResult.cloudinaryUrl || spacesResult.spacesUrl || '';
-      response.fallbackUrl = spacesResult.spacesUrl;
-
-      // Create variant URLs mapping
-      if (spacesResult.spacesVariants) {
-        spacesResult.spacesVariants.forEach(variant => {
-          response.variants![variant.variant] = variant.spacesUrl;
+      // Upload to DO Spaces in BACKGROUND (non-blocking, for backup)
+      // Don't await - let it complete asynchronously
+      this.logger.log('📤 Starting DigitalOcean Spaces upload in background (backup)...');
+      this.resizeAndUploadToSpaces(imageBuffer, userId, category, filename, itemId)
+        .then((spacesResult) => {
+          this.logger.log(`✅ Background Spaces upload: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
+          // Note: These values won't be in the initial response, but will be stored in DB later
+          response.backup = spacesResult;
+          response.fallbackUrl = spacesResult.spacesUrl;
+          
+          // Create variant URLs mapping
+          if (spacesResult.spacesVariants) {
+            spacesResult.spacesVariants.forEach(variant => {
+              response.variants![variant.variant] = variant.spacesUrl;
+            });
+          }
+        })
+        .catch((error) => {
+          this.logger.warn(`⚠️ Background Spaces upload failed (non-critical): ${error.message}`);
+          response.backup = { success: false, errors: [error.message] };
         });
-      }
+
+      // Return immediately with Cloudinary URL - don't wait for Spaces
 
       this.logger.log(`🎯 Final result - Primary: ${response.primary.success}, Backup: ${response.backup.success}, URL: ${response.recommendedUrl}`);
 
