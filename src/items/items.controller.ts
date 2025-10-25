@@ -124,7 +124,7 @@ export class ItemsController {
       callback(null, true);
     },
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB per file
+      fileSize: 7 * 1024 * 1024, // 7MB per file
     }
   }))
   @ApiBearerAuth()

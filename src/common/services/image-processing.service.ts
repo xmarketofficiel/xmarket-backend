@@ -258,7 +258,7 @@ export class ImageProcessingService {
         }
 
         // Warn about large files that will take time to process
-        if (buffer.length > 5 * 1024 * 1024) {
+        if (buffer.length > 7 * 1024 * 1024) {
           warnings.push(`Large file size detected (${Math.round(buffer.length / (1024 * 1024))}MB). Processing may take longer but will be optimized automatically.`);
         }
 

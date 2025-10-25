@@ -316,11 +316,11 @@ export class UploadsController {
   @Post('upload-optimized')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ 
-    summary: 'Upload and optimize image to both Cloudinary and DigitalOcean Spaces',
-    description: 'Uploads original to Cloudinary and creates resized variants for Spaces'
+    summary: 'Upload original image to both Cloudinary and DigitalOcean Spaces',
+    description: 'Uploads original image to both services for redundancy (no variants)'
   })
   @ApiConsumes('multipart/form-data')
-  @ApiResponse({ status: 201, description: 'Image uploaded and optimized successfully' })
+  @ApiResponse({ status: 201, description: 'Image uploaded successfully' })
   @ApiResponse({ status: 400, description: 'Invalid file or upload parameters' })
   async uploadOptimizedImage(
     @UploadedFile() file: Express.Multer.File,
@@ -337,7 +337,7 @@ export class UploadsController {
         throw new BadRequestException('Invalid image file type or size');
       }
 
-      // Upload and resize to both services
+      // Upload original to both services
       const result = await this.dualImageService.uploadImageToBothServices(
         file.buffer,
         user.id,
@@ -348,11 +348,10 @@ export class UploadsController {
 
       return {
         success: true,
-        message: 'Image uploaded and optimized successfully',
+        message: 'Image uploaded successfully to both services',
         urls: {
           primary: result.recommendedUrl,
-          fallback: result.fallbackUrl,
-          variants: result.variants
+          fallback: result.fallbackUrl
         },
         cloudinary: {
           success: result.primary.success,
@@ -361,20 +360,16 @@ export class UploadsController {
         },
         spaces: {
           success: result.backup.success,
-          url: result.backup.spacesUrl,
-          variants: result.backup.spacesVariants?.length || 0
+          url: result.backup.spacesUrl
         },
-        optimization: {
+        storage: {
           originalSize: file.size,
-          variantsCreated: result.backup.spacesVariants?.length || 0,
-          spaceSaved: result.backup.spacesVariants ? 
-            file.size - (result.backup.spacesVariants.reduce((sum, v) => sum + v.size, 0) / result.backup.spacesVariants.length) 
-            : 0
+          uploaded: 'Original image only (no variants)'
         }
       };
 
     } catch (error) {
-      this.logger.error(`Optimized upload failed: ${error.message}`);
+      this.logger.error(`Upload failed: ${error.message}`);
       throw new BadRequestException(`Upload failed: ${error.message}`);
     }
   }
@@ -437,7 +432,7 @@ export class UploadsController {
   @ApiResponse({ status: 200, description: 'Upload info retrieved successfully' })
   getUploadInfo() {
     return {
-      maxFileSize: '5MB',
+      maxFileSize: '7MB',
       maxFilesPerBatch: 6,
       supportedFormats: ['.jpg', '.jpeg', '.png', '.webp'],
       uploadMethods: {

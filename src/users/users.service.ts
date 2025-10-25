@@ -155,8 +155,8 @@ export class UsersService {
       throw new BadRequestException('Empty file or invalid file data');
     }
 
-    // Check file size (5MB limit for avatars)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Check file size (7MB limit for avatars)
+    const maxSize = 7 * 1024 * 1024; // 7MB
     if (file.buffer.length > maxSize) {
       throw new BadRequestException(`File size too large. Maximum size is ${maxSize / (1024 * 1024)}MB`);
     }
