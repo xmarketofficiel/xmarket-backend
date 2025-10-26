@@ -38,7 +38,7 @@ export class IsMoroccanPhoneConstraint implements ValidatorConstraintInterface {
   }
 
   defaultMessage(args: ValidationArguments) {
-    return 'Veuillez saisir un numéro de téléphone marocain valide (Ex: 0612345678 ou +212612345678)';
+    return 'Please enter a valid Moroccan phone number (e.g., 0612345678 or +212612345678)';
   }
 }
 

@@ -41,10 +41,10 @@ export class CompleteRegistrationDto {
 
   @ApiProperty({ 
     example: '0612345678', 
-    description: 'Numéro WhatsApp marocain (Ex: 0612345678 ou +212612345678)' 
+    description: 'Moroccan WhatsApp number (e.g., 0612345678 or +212612345678)' 
   })
   @IsMoroccanPhone({ 
-    message: 'Veuillez saisir un numéro de téléphone marocain valide (Ex: 0612345678 ou +212612345678)' 
+    message: 'Please enter a valid Moroccan phone number (e.g., 0612345678 or +212612345678)' 
   })
   whatsappNumber: string;
 

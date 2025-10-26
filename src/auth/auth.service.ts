@@ -41,11 +41,11 @@ export class AuthService {
     const normalizedEmail = loginDto.email.toLowerCase().trim();
     const user = await this.validateUser(normalizedEmail, loginDto.password);
     if (!user) {
-      throw new UnauthorizedException('Identifiants invalides');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     if (!user.isVerified) {
-      throw new UnauthorizedException('Veuillez d\'abord vérifier votre adresse email');
+      throw new UnauthorizedException('Please verify your email address first');
     }
 
     // Check if user is suspended or banned
@@ -80,13 +80,13 @@ export class AuthService {
     // Check if user already exists and is verified
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser && existingUser.isVerified) {
-      throw new ConflictException('Cette adresse email est déjà enregistrée. Veuillez vous connecter ou utiliser une autre adresse email.');
+      throw new ConflictException('This email address is already registered. Please log in or use a different email address.');
     }
     
     // Check email eligibility
     const eligibility = await this.joinRequestsService.checkEmailEligibility(normalizedEmail);
     if (!eligibility.eligible) {
-      throw new UnauthorizedException('Cette adresse email n\'est pas autorisée à s\'inscrire. Veuillez soumettre une demande d\'adhésion ou utiliser une adresse email universitaire valide.');
+      throw new UnauthorizedException('This email address is not authorized to register. Please submit a membership request or use a valid university email address.');
     }
 
     // Generate and send OTP
@@ -94,7 +94,7 @@ export class AuthService {
     await this.emailService.sendOtpEmail(normalizedEmail, otp, 'registration');
 
     return { 
-      message: 'Code de vérification envoyé à votre email',
+      message: 'Verification code sent to your email',
       eligibilityReason: eligibility.reason
     };
   }
@@ -107,10 +107,10 @@ export class AuthService {
     
     const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'registration');
     if (!isValid) {
-      throw new BadRequestException('Code de vérification invalide ou expiré');
+      throw new BadRequestException('Invalid or expired verification code');
     }
 
-    return { message: 'Code de vérification validé avec succès', verified: true };
+    return { message: 'Verification code validated successfully', verified: true };
   }
   private extractFullName(email: string): string | null {
     if (!email || typeof email !== 'string') return null;
@@ -156,7 +156,7 @@ export class AuthService {
     // Check if user already exists and is verified
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser && existingUser.isVerified) {
-      throw new ConflictException('Cette adresse email est déjà enregistrée et vérifiée.');
+      throw new ConflictException('This email address is already registered and verified.');
     }
 
     // Use provided names or legacy fullName as fallback
