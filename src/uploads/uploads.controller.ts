@@ -350,21 +350,24 @@ export class UploadsController {
         success: true,
         message: 'Image uploaded successfully to both services',
         urls: {
-          primary: result.recommendedUrl,
+          primary: result.recommendedUrl, // DO Spaces URL (primary)
           fallback: result.fallbackUrl
         },
-        cloudinary: {
-          success: result.primary.success,
-          url: result.primary.cloudinaryUrl,
-          publicId: result.primary.publicId
-        },
         spaces: {
+          success: result.primary.success,
+          url: result.primary.spacesUrl,
+          key: result.primary.spacesKey
+        },
+        cloudinary: {
           success: result.backup.success,
-          url: result.backup.spacesUrl
+          url: result.backup.cloudinaryUrl,
+          publicId: result.backup.publicId
         },
         storage: {
           originalSize: file.size,
-          uploaded: 'Original image only (no variants)'
+          uploaded: 'Original image only (no variants)',
+          primaryStorage: 'DigitalOcean Spaces',
+          backupStorage: 'Cloudinary (async)'
         }
       };
 

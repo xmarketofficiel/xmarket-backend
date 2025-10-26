@@ -178,22 +178,29 @@ export class UsersService {
         file.originalname
       );
       
-      // Save all image URLs to user record
-      user.profileImageUrl = uploadResult.recommendedUrl; // Cloudinary URL (primary)
+      // Save DO Spaces URL as primary
+      user.profileImageUrl = uploadResult.recommendedUrl; // DO Spaces URL (primary)
       
-      // Save DigitalOcean Spaces information for backup/fallback
-      if (uploadResult.backup.success && uploadResult.backup.spacesUrl) {
-        user.profileImageSpacesUrl = uploadResult.backup.spacesUrl;
-        user.profileImageSpacesKey = uploadResult.backup.spacesKey;
+      // Save DO Spaces information
+      if (uploadResult.primary.success && uploadResult.primary.spacesUrl) {
+        user.profileImageSpacesUrl = uploadResult.primary.spacesUrl;
+        user.profileImageSpacesKey = uploadResult.primary.spacesKey;
         
-        // Save variant URLs as JSON object
-        if (uploadResult.backup.spacesVariants && uploadResult.backup.spacesVariants.length > 0) {
+        // Save variant URLs as JSON object if any
+        if (uploadResult.primary.spacesVariants && uploadResult.primary.spacesVariants.length > 0) {
           const variants: { [key: string]: string } = {};
-          uploadResult.backup.spacesVariants.forEach(variant => {
+          uploadResult.primary.spacesVariants.forEach(variant => {
             variants[variant.variant] = variant.spacesUrl;
           });
           user.profileImageVariants = variants;
         }
+      }
+      
+      // Save Cloudinary information as backup (if it completed in background)
+      if (uploadResult.backup.success && uploadResult.backup.cloudinaryUrl) {
+        // Store Cloudinary URL in a backup field if you have one
+        // For now, it's just logged but not stored
+        console.log(`✅ Cloudinary backup URL available: ${uploadResult.backup.cloudinaryUrl}`);
       }
       
       return this.usersRepository.save(user);

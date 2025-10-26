@@ -76,6 +76,7 @@ export class DualImageService {
 
   /**
    * Upload original image to both Cloudinary and DO Spaces (no variants)
+   * DO Spaces is PRIMARY, Cloudinary is BACKUP
    */
   async uploadImageToBothServices(
     imageBuffer: Buffer,
@@ -94,9 +95,9 @@ export class DualImageService {
     this.logger.log(`🚀 Starting dual upload for user ${userId}, category: ${category}, filename: ${filename}`);
 
     try {
-      // Upload to Cloudinary FIRST (fast, primary storage)
-      this.logger.log('📤 Starting Cloudinary upload (primary)...');
-      const cloudinaryResult = await this.uploadToCloudinary(
+      // Upload to DO Spaces FIRST (primary storage) - WAIT for it
+      this.logger.log('📤 Starting DigitalOcean Spaces upload (PRIMARY)...');
+      const spacesResult = await this.uploadOriginalToSpaces(
         imageBuffer,
         userId,
         category,
@@ -104,30 +105,29 @@ export class DualImageService {
         itemId
       );
       
-      response.primary = cloudinaryResult;
-      this.logger.log(`✅ Cloudinary upload: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
+      response.primary = spacesResult;
+      this.logger.log(`✅ DO Spaces upload: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
 
-      // Set recommended URL immediately from Cloudinary
-      response.recommendedUrl = cloudinaryResult.cloudinaryUrl || '';
+      // Set recommended URL immediately from DO Spaces
+      response.recommendedUrl = spacesResult.spacesUrl || '';
+      response.fallbackUrl = spacesResult.spacesUrl;
 
-      // Upload ORIGINAL to DO Spaces in BACKGROUND (no resizing, just backup)
+      // Upload to Cloudinary in BACKGROUND (backup only)
       // Don't await - let it complete asynchronously
-      this.logger.log('📤 Starting DigitalOcean Spaces upload in background (backup - original only)...');
-      this.uploadOriginalToSpaces(imageBuffer, userId, category, filename, itemId)
-        .then((spacesResult) => {
-          this.logger.log(`✅ Background Spaces upload: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
-          // Note: These values won't be in the initial response, but will be stored in DB later
-          response.backup = spacesResult;
-          response.fallbackUrl = spacesResult.spacesUrl;
+      this.logger.log('📤 Starting Cloudinary upload in background (backup)...');
+      this.uploadToCloudinary(imageBuffer, userId, category, filename, itemId)
+        .then((cloudinaryResult) => {
+          this.logger.log(`✅ Background Cloudinary upload: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
+          response.backup = cloudinaryResult;
         })
         .catch((error) => {
-          this.logger.warn(`⚠️ Background Spaces upload failed (non-critical): ${error.message}`);
+          this.logger.warn(`⚠️ Background Cloudinary upload failed (non-critical): ${error.message}`);
           response.backup = { success: false, errors: [error.message] };
         });
 
-      // Return immediately with Cloudinary URL - don't wait for Spaces
+      // Return immediately with DO Spaces URL - don't wait for Cloudinary
 
-      this.logger.log(`🎯 Final result - Primary: ${response.primary.success}, Backup: ${response.backup.success}, URL: ${response.recommendedUrl}`);
+      this.logger.log(`🎯 Final result - Primary (DO Spaces): ${response.primary.success}, Backup (Cloudinary): ${response.backup.success}, URL: ${response.recommendedUrl}`);
 
     } catch (error) {
       this.logger.error(`❌ Dual upload failed: ${error.message}`);
