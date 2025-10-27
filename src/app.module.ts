@@ -45,6 +45,8 @@ import { UserBlock } from './users/entities/user-block.entity';
 import { UserReport } from './users/entities/user-report.entity';
 import { WaitlistEmail } from './entities/waitlist-email.entity';
 import { JoinRequest } from './join-requests/entities/join-request.entity';
+import { FeaturedProductsModule } from './featured-products/featured-products.module';
+import { FeaturedProduct } from './featured-products/entities/featured-product.entity';
 
 @Module({
   imports: [
@@ -95,7 +97,8 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
               UserBlock,
               UserReport,
               WaitlistEmail,
-              JoinRequest
+              JoinRequest,
+              FeaturedProduct
             ],
             synchronize: true, // Auto-create tables if they don't exist
             dropSchema: false, // Never drop existing data
@@ -137,7 +140,8 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
             UserBlock,
             UserReport,
             WaitlistEmail,
-            JoinRequest
+            JoinRequest,
+            FeaturedProduct
           ],
           synchronize: process.env.NODE_ENV === 'development',
           logging: process.env.NODE_ENV === 'development',
@@ -177,6 +181,7 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
     AdminModule,
     WaitlistModule,
     JoinRequestsModule,
+    FeaturedProductsModule,
     CommonModule,
   ],
   providers: [
