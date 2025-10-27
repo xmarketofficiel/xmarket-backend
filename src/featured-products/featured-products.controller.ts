@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { FeaturedProductsService } from './featured-products.service';
 import { FeaturedProduct } from './entities/featured-product.entity';
-import { Public } from 'src/common/decorators/public.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('featured-products')
 @Controller('featured-products')
