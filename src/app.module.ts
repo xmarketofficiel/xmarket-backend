@@ -47,6 +47,7 @@ import { WaitlistEmail } from './entities/waitlist-email.entity';
 import { JoinRequest } from './join-requests/entities/join-request.entity';
 import { FeaturedProductsModule } from './featured-products/featured-products.module';
 import { FeaturedProduct } from './featured-products/entities/featured-product.entity';
+import { AdminUser } from './admin/entities/admin-user.entity';
 
 @Module({
   imports: [
@@ -98,14 +99,23 @@ import { FeaturedProduct } from './featured-products/entities/featured-product.e
               UserReport,
               WaitlistEmail,
               JoinRequest,
-              FeaturedProduct
+              FeaturedProduct,
+              AdminUser
             ],
-            synchronize: true, // Auto-create tables if they don't exist
+            synchronize: false, // Using migrations instead - DO NOT ENABLE
             dropSchema: false, // Never drop existing data
             logging: process.env.NODE_ENV === 'development',
-            // SSL configuration for production (AWS RDS)
+            // Connection timeout settings
+            connectTimeoutMS: 10000, // 10 seconds
+            extra: {
+              connectionTimeoutMillis: 10000,
+              query_timeout: 10000,
+              statement_timeout: 10000,
+              idle_in_transaction_session_timeout: 10000,
+            },
+            // SSL configuration for production (Railway, AWS RDS, etc.)
             // This fixes the "self-signed certificate in certificate chain" error
-            ssl: (process.env.NODE_ENV === 'production' || (url.searchParams.get('sslmode') === 'require')) ? {
+            ssl: true ? {
               rejectUnauthorized: false,
               ca: undefined, // Don't require CA validation
             } : false,
@@ -141,9 +151,10 @@ import { FeaturedProduct } from './featured-products/entities/featured-product.e
             UserReport,
             WaitlistEmail,
             JoinRequest,
-            FeaturedProduct
+            FeaturedProduct,
+            AdminUser
           ],
-          synchronize: process.env.NODE_ENV === 'development',
+          synchronize: false, // Using migrations instead
           logging: process.env.NODE_ENV === 'development',
           // SSL configuration for production (AWS RDS)
           // This fixes the "self-signed certificate in certificate chain" error
