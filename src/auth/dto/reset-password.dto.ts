@@ -9,7 +9,7 @@ export class ResetPasswordDto {
   @ApiProperty({ example: '123456', description: '6-digit OTP code' })
   @IsString()
   @Length(6, 6)
-  otp: string;
+  code: string;
 
   @ApiProperty({ example: 'newpassword123', description: 'New password' })
   @IsString()

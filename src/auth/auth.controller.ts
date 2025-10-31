@@ -9,6 +9,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
 import { VerifyDiscord1337Dto } from './dto/verify-discord-1337.dto';
 import { CreateJoinRequestDto } from '../join-requests/dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from '../join-requests/dto/update-join-request.dto';
@@ -141,13 +142,24 @@ export class AuthController {
   }
 
   @Public()
+  @Post('verify-reset-otp')
+  @ApiOperation({ summary: 'Verify password reset OTP' })
+  @ApiResponse({ status: 200, description: 'OTP verified successfully' })
+  async verifyResetOtp(@Body() verifyResetOtpDto: VerifyResetOtpDto) {
+    return this.authService.verifyPasswordResetOtp(
+      verifyResetOtpDto.email,
+      verifyResetOtpDto.code,
+    );
+  }
+
+  @Public()
   @Post('reset-password')
-  @ApiOperation({ summary: 'Reset password' })
+  @ApiOperation({ summary: 'Reset password with OTP' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(
       resetPasswordDto.email,
-      resetPasswordDto.otp,
+      resetPasswordDto.code,
       resetPasswordDto.newPassword,
     );
   }

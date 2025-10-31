@@ -13,6 +13,7 @@ import { UserRole, UserStatus } from '../users/entities/user.entity';
 import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
 import * as bcrypt from 'bcryptjs';
 import { last } from 'rxjs';
+import passport from 'passport';
 
 @Injectable()
 export class AuthService {
@@ -29,7 +30,9 @@ export class AuthService {
     // Normalize email to lowercase for consistent lookup
     const normalizedEmail = email.toLowerCase().trim();
     const user = await this.usersService.findByEmail(normalizedEmail);
+    console.log('Validating user:', user);
     if (user && await bcrypt.compare(password, user.passwordHash)) {
+      console.log('User validated successfully:', user.email);
       const { passwordHash, ...result } = user;
       return result;
     }
@@ -208,36 +211,80 @@ export class AuthService {
     };
   }
 
+  /**
+   * Forgot Password - Step 1: Send OTP to email
+   */
   async forgotPassword(email: string) {
-    // Normalize email to lowercase for consistent lookup
+    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check if user exists
     const user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new BadRequestException('No account found with this email address');
     }
 
-    const otp = await this.otpService.generateOtp(normalizedEmail, 'password_reset');
-    await this.emailService.sendOtpEmail(normalizedEmail, otp, 'password_reset');
+    // Check if user is verified
+    if (!user.isVerified) {
+      throw new BadRequestException('Please verify your account first before resetting your password');
+    }
 
-    return { message: 'Password reset OTP sent to your email' };
+    // Generate and send OTP for password reset
+    const otp = await this.otpService.generatePasswordResetOtp(normalizedEmail);
+    await this.emailService.sendOtpEmail(normalizedEmail, otp, 'password-reset');
+
+    return { 
+      message: 'Password reset code sent to your email. Please check your inbox.',
+      email: normalizedEmail
+    };
   }
 
-  async resetPassword(email: string, otp: string, newPassword: string) {
-    // Normalize email to lowercase for consistent lookup
+  /**
+   * Forgot Password - Step 2: Verify OTP
+   */
+  async verifyPasswordResetOtp(email: string, code: string) {
+    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
-    const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'password_reset');
+    
+    // Check if OTP is valid WITHOUT marking it as verified
+    // This allows the user to still use it in the reset password step
+    const isValid = await this.otpService.checkPasswordResetOtpValid(normalizedEmail, code);
+    
     if (!isValid) {
-      throw new BadRequestException('Invalid or expired OTP');
+      throw new BadRequestException('Invalid or expired OTP code');
     }
 
+    return { 
+      message: 'OTP verified successfully. You can now reset your password.',
+      verified: true
+    };
+  }
+
+  /**
+   * Forgot Password - Step 3: Reset password with OTP
+   */
+  async resetPassword(email: string, code: string, newPassword: string) {
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find user
     const user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new BadRequestException('User not found');
     }
 
+    // Verify OTP one final time and mark it as verified (consumes the OTP)
+    const isValid = await this.otpService.verifyPasswordResetOtp(normalizedEmail, code);
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP code. Please request a new one.');
+    }
+
+    // Update user password (updatePassword will handle hashing)
     await this.usersService.updatePassword(user.id, newPassword);
 
-    return { message: 'Password reset successful' };
+    return { 
+      message: 'Password reset successfully. You can now log in with your new password.'
+    };
   }
 
   async refreshToken(refreshToken: string) {
@@ -403,3 +450,4 @@ export class AuthService {
     }
   }
 }
+    
