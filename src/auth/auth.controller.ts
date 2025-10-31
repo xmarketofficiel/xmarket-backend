@@ -2,6 +2,7 @@ import { Controller, Post, Body, Res, Req, Get, Patch, Param, Query, ValidationP
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
+import { AdminAuthService } from '../admin/services/admin-auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -19,9 +20,9 @@ import { User } from '../users/entities/user.entity';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  // Updated auth controller with admin cookie support
   constructor(
     private authService: AuthService,
+    private adminAuthService: AdminAuthService,
     private joinRequestsService: JoinRequestsService
   ) {}
 
@@ -80,13 +81,14 @@ export class AuthController {
 
   @Public()
   @Post('admin/login')
-  @ApiOperation({ summary: 'Admin login' })
+  @ApiOperation({ summary: 'Admin login - uses separate admin_users table' })
   @ApiResponse({ status: 200, description: 'Admin logged in successfully' })
   async adminLogin(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response
   ) {
-    const result = await this.authService.adminLogin(loginDto);
+    // Use AdminAuthService instead of regular AuthService
+    const result = await this.adminAuthService.adminLogin(loginDto);
     
     // Set HTTP-only cookies for admin session
     response.cookie('admin_token', result.accessToken, {
