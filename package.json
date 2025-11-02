@@ -28,6 +28,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "create:admin": "ts-node scripts/create-admin.ts",
+    "create:admin-user": "ts-node scripts/create-admin-user.ts",
+    "migrate:admin-users": "node scripts/run-migration.js",
+    "verify:admin-users": "node scripts/verify-admin-table.js",
     "reset:user": "ts-node -r tsconfig-paths/register scripts/reset-user.ts",
     "test:email": "ts-node -r tsconfig-paths/register scripts/test-email-eligibility.ts"
   },
@@ -55,7 +58,7 @@
     "express": "^5.1.0",
     "form-data": "^4.0.4",
     "multer": "^2.0.2",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^7.0.7",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",

@@ -81,4 +81,51 @@ export class OtpService {
       expiresAt: LessThan(new Date()),
     });
   }
+
+  /**
+   * Generate OTP for password reset
+   */
+  async generatePasswordResetOtp(email: string): Promise<string> {
+    return this.generateOtp(email, 'password-reset');
+  }
+
+  /**
+   * Verify OTP for password reset
+   */
+  async verifyPasswordResetOtp(email: string, code: string): Promise<boolean> {
+    return this.verifyOtp(email, code, 'password-reset');
+  }
+
+  /**
+   * Check if OTP is valid without marking it as verified
+   * Used for intermediate verification steps
+   */
+  async checkOtpValid(email: string, code: string, type: string = 'registration'): Promise<boolean> {
+    const otp = await this.otpRepository.findOne({
+      where: {
+        email,
+        code,
+        type,
+        verified: false,
+      },
+    });
+
+    if (!otp) {
+      return false;
+    }
+
+    // Check if OTP is expired
+    if (otp.expiresAt < new Date()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if password reset OTP is valid without marking as verified
+   */
+  async checkPasswordResetOtpValid(email: string, code: string): Promise<boolean> {
+    return this.checkOtpValid(email, code, 'password-reset');
+  }
 }

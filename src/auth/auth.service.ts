@@ -12,6 +12,8 @@ import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole, UserStatus } from '../users/entities/user.entity';
 import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
 import * as bcrypt from 'bcryptjs';
+import { last } from 'rxjs';
+import passport from 'passport';
 
 @Injectable()
 export class AuthService {
@@ -28,7 +30,9 @@ export class AuthService {
     // Normalize email to lowercase for consistent lookup
     const normalizedEmail = email.toLowerCase().trim();
     const user = await this.usersService.findByEmail(normalizedEmail);
+    console.log('Validating user:', user);
     if (user && await bcrypt.compare(password, user.passwordHash)) {
+      console.log('User validated successfully:', user.email);
       const { passwordHash, ...result } = user;
       return result;
     }
@@ -40,11 +44,11 @@ export class AuthService {
     const normalizedEmail = loginDto.email.toLowerCase().trim();
     const user = await this.validateUser(normalizedEmail, loginDto.password);
     if (!user) {
-      throw new UnauthorizedException('Identifiants invalides');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     if (!user.isVerified) {
-      throw new UnauthorizedException('Veuillez d\'abord vérifier votre adresse email');
+      throw new UnauthorizedException('Please verify your email address first');
     }
 
     // Check if user is suspended or banned
@@ -79,13 +83,13 @@ export class AuthService {
     // Check if user already exists and is verified
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser && existingUser.isVerified) {
-      throw new ConflictException('Cette adresse email est déjà enregistrée. Veuillez vous connecter ou utiliser une autre adresse email.');
+      throw new ConflictException('This email address is already registered. Please log in or use a different email address.');
     }
     
     // Check email eligibility
     const eligibility = await this.joinRequestsService.checkEmailEligibility(normalizedEmail);
     if (!eligibility.eligible) {
-      throw new UnauthorizedException('Cette adresse email n\'est pas autorisée à s\'inscrire. Veuillez soumettre une demande d\'adhésion ou utiliser une adresse email universitaire valide.');
+      throw new UnauthorizedException('This email address is not authorized to register. Please submit a membership request or use a valid university email address.');
     }
 
     // Generate and send OTP
@@ -93,7 +97,7 @@ export class AuthService {
     await this.emailService.sendOtpEmail(normalizedEmail, otp, 'registration');
 
     return { 
-      message: 'Code de vérification envoyé à votre email',
+      message: 'Verification code sent to your email',
       eligibilityReason: eligibility.reason
     };
   }
@@ -106,10 +110,10 @@ export class AuthService {
     
     const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'registration');
     if (!isValid) {
-      throw new BadRequestException('Code de vérification invalide ou expiré');
+      throw new BadRequestException('Invalid or expired verification code');
     }
 
-    return { message: 'Code de vérification validé avec succès', verified: true };
+    return { message: 'Verification code validated successfully', verified: true };
   }
   private extractFullName(email: string): string | null {
     if (!email || typeof email !== 'string') return null;
@@ -134,7 +138,17 @@ export class AuthService {
   }
 
   async completeRegistration(completeRegistrationDto: CompleteRegistrationDto) {
-    const { email, password, fullName, whatsappNumber } = completeRegistrationDto;
+    const { 
+      email, 
+      password, 
+      firstName, 
+      lastName, 
+      department, 
+      role, 
+      address, 
+      whatsappNumber,
+      fullName 
+    } = completeRegistrationDto;
 
     // Normalize email to lowercase for consistent storage
     const normalizedEmail = email.toLowerCase().trim();
@@ -145,18 +159,25 @@ export class AuthService {
     // Check if user already exists and is verified
     const existingUser = await this.usersService.findByEmail(normalizedEmail);
     if (existingUser && existingUser.isVerified) {
-      throw new ConflictException('Cette adresse email est déjà enregistrée et vérifiée.');
+      throw new ConflictException('This email address is already registered and verified.');
     }
 
-    // Use the fullName provided by user, or extract from email as fallback
-    const finalFullName = fullName || this.extractFullName(normalizedEmail) || 'User';
+    // Use provided names or legacy fullName as fallback
+    const finalFirstName = firstName || fullName?.split(' ')[0] || this.extractFullName(normalizedEmail) || 'User';
+    const finalLastName = lastName || fullName?.split(' ').slice(1).join(' ') || '';
+    const finalFullName = `${finalFirstName} ${finalLastName}`.trim();
     
     // Create or update user
     const userData = {
-      email: normalizedEmail, // Store normalized email
+      email: normalizedEmail,
       password,
-      fullName: finalFullName,
-      whatsappNumber: normalizedPhone, // Store normalized phone
+      firstName: finalFirstName,
+      lastName: finalLastName,
+      fullName: finalFullName, // Keep for backward compatibility
+      department,
+      userRole: role,
+      address,
+      whatsappNumber: normalizedPhone,
     };
 
     let user;
@@ -190,36 +211,80 @@ export class AuthService {
     };
   }
 
+  /**
+   * Forgot Password - Step 1: Send OTP to email
+   */
   async forgotPassword(email: string) {
-    // Normalize email to lowercase for consistent lookup
+    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check if user exists
     const user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new BadRequestException('No account found with this email address');
     }
 
-    const otp = await this.otpService.generateOtp(normalizedEmail, 'password_reset');
-    await this.emailService.sendOtpEmail(normalizedEmail, otp, 'password_reset');
+    // Check if user is verified
+    if (!user.isVerified) {
+      throw new BadRequestException('Please verify your account first before resetting your password');
+    }
 
-    return { message: 'Password reset OTP sent to your email' };
+    // Generate and send OTP for password reset
+    const otp = await this.otpService.generatePasswordResetOtp(normalizedEmail);
+    await this.emailService.sendOtpEmail(normalizedEmail, otp, 'password-reset');
+
+    return { 
+      message: 'Password reset code sent to your email. Please check your inbox.',
+      email: normalizedEmail
+    };
   }
 
-  async resetPassword(email: string, otp: string, newPassword: string) {
-    // Normalize email to lowercase for consistent lookup
+  /**
+   * Forgot Password - Step 2: Verify OTP
+   */
+  async verifyPasswordResetOtp(email: string, code: string) {
+    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
-    const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'password_reset');
+    
+    // Check if OTP is valid WITHOUT marking it as verified
+    // This allows the user to still use it in the reset password step
+    const isValid = await this.otpService.checkPasswordResetOtpValid(normalizedEmail, code);
+    
     if (!isValid) {
-      throw new BadRequestException('Invalid or expired OTP');
+      throw new BadRequestException('Invalid or expired OTP code');
     }
 
+    return { 
+      message: 'OTP verified successfully. You can now reset your password.',
+      verified: true
+    };
+  }
+
+  /**
+   * Forgot Password - Step 3: Reset password with OTP
+   */
+  async resetPassword(email: string, code: string, newPassword: string) {
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find user
     const user = await this.usersService.findByEmail(normalizedEmail);
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new BadRequestException('User not found');
     }
 
+    // Verify OTP one final time and mark it as verified (consumes the OTP)
+    const isValid = await this.otpService.verifyPasswordResetOtp(normalizedEmail, code);
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP code. Please request a new one.');
+    }
+
+    // Update user password (updatePassword will handle hashing)
     await this.usersService.updatePassword(user.id, newPassword);
 
-    return { message: 'Password reset successful' };
+    return { 
+      message: 'Password reset successfully. You can now log in with your new password.'
+    };
   }
 
   async refreshToken(refreshToken: string) {
@@ -295,4 +360,94 @@ export class AuthService {
       },
     };
   }
+
+  async verifyDiscord1337(verifyDto: any): Promise<any> {
+    const { code } = verifyDto;
+    
+    try {
+      // Step 1: Exchange authorization code for access token
+      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: process.env.DISCORD_CLIENT_ID,
+          client_secret: process.env.DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: `${process.env.FRONTEND_URL}/auth/discord/callback`,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        throw new BadRequestException('Failed to exchange Discord authorization code');
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+
+      // Step 2: Get user information from Discord
+      const userResponse = await fetch('https://discord.com/api/users/@me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!userResponse.ok) {
+        throw new BadRequestException('Failed to fetch Discord user data');
+      }
+
+      const discordUser = await userResponse.json();
+      console.log('Discord User:', discordUser);
+
+      // Step 3: Get user's guild memberships
+      const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!guildsResponse.ok) {
+        throw new BadRequestException('Failed to fetch Discord guild memberships');
+      }
+
+      const guilds = await guildsResponse.json();
+      console.log('Guilds:', guilds);
+
+      // Step 4: Check if user is a member of 1337 Discord server
+      const guild1337Id = process.env.DISCORD_1337_GUILD_ID;
+      const is1337Member = guilds.some((guild: any) => guild.id === guild1337Id);
+
+      if (!is1337Member) {
+        throw new BadRequestException('You must be a member of the 1337 Discord server to register. Please join the server first.');
+      }
+
+      return {
+        verified: true,
+        user: {
+          id: discordUser.id,
+          username: discordUser.username,
+          discriminator: discordUser.discriminator,
+          email: discordUser.email,
+          avatar: discordUser.avatar,
+          avatar_url: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null,
+          global_name: discordUser.global_name,
+          is_guild_member: true,
+          guild_name: '1337 School'
+        },
+        message: 'Discord verification successful! 1337 server membership verified.',
+      };
+
+    } catch (error) {
+      console.error('Discord verification error:', error);
+      
+      if (error instanceof BadRequestException || error instanceof ConflictException) {
+        throw error;
+      }
+      
+      throw new BadRequestException('Discord verification failed. Please try again.');
+    }
+  }
 }
+    

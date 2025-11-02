@@ -7,12 +7,18 @@ import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from './dto/update-join-request.dto';
 import { EmailService } from '../email/email.service';
 import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
+import { UserRole } from 'src/users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
+import * as bcryptjs from 'bcryptjs';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class JoinRequestsService {
   constructor(
     @InjectRepository(JoinRequest)
     private joinRequestsRepository: Repository<JoinRequest>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
     private emailService: EmailService,
   ) {}
 
@@ -30,7 +36,13 @@ export class JoinRequestsService {
     const normalizedPhone = normalizeMoroccanPhone(createJoinRequestDto.whatsappNumber);
 
     const joinRequest = this.joinRequestsRepository.create({
-      ...createJoinRequestDto,
+      firstName: createJoinRequestDto.firstName,
+      lastName: createJoinRequestDto.lastName,
+      fullName: createJoinRequestDto.fullName,
+      department: createJoinRequestDto.department,
+      userRole: createJoinRequestDto.role,
+      address: createJoinRequestDto.address,
+      email: createJoinRequestDto.email,
       whatsappNumber: normalizedPhone
     });
     return this.joinRequestsRepository.save(joinRequest);
@@ -84,6 +96,9 @@ export class JoinRequestsService {
   async approve(id: number, reviewedBy: number, reviewNotes?: string): Promise<JoinRequest> {
     const joinRequest = await this.findOne(id);
     
+    // Generate password and create user account
+    const generatedPassword = await this.createUserFromJoinRequest(joinRequest);
+    
     joinRequest.status = JoinRequestStatus.APPROVED;
     joinRequest.reviewedBy = reviewedBy;
     joinRequest.reviewNotes = reviewNotes;
@@ -91,10 +106,53 @@ export class JoinRequestsService {
 
     const updatedRequest = await this.joinRequestsRepository.save(joinRequest);
     
-    // Send approval email
-    await this.sendApprovalEmail(updatedRequest);
+    // Send approval email with generated password
+    await this.sendApprovalEmail(updatedRequest, generatedPassword);
     
     return updatedRequest;
+  }
+
+  private async createUserFromJoinRequest(joinRequest: JoinRequest): Promise<string> {
+    try {
+      // Check if user already exists
+      const existingUser = await this.usersRepository.findOne({
+        where: { email: joinRequest.email }
+      });
+
+      if (existingUser) {
+        console.log(`User with email ${joinRequest.email} already exists`);
+        return null; // Return null if user already exists
+      }
+
+      // Generate a random password
+      const generatedPassword = crypto.randomBytes(8).toString('hex');
+      
+      // Hash the password
+      const saltRounds = 10;
+      const hashedPassword = await bcryptjs.hash(generatedPassword, saltRounds);
+
+      // Create user account from join request data
+      const newUser = this.usersRepository.create({
+        fullName: joinRequest.fullName,
+        firstName: joinRequest.firstName || joinRequest.fullName?.split(' ')[0] || '',
+        lastName: joinRequest.lastName || joinRequest.fullName?.split(' ').slice(1).join(' ') || '',
+        email: joinRequest.email,
+        whatsappNumber: joinRequest.whatsappNumber,
+        department: joinRequest.department,
+        userRole: joinRequest.userRole as 'seller',
+        address: joinRequest.address,
+        passwordHash: hashedPassword,
+        isVerified: true, // Auto-verify since admin approved
+      });
+
+      await this.usersRepository.save(newUser);
+      console.log(`User account created for ${joinRequest.email}`);
+      
+      return generatedPassword;
+    } catch (error) {
+      console.error('Failed to create user account:', error);
+      return null; // Return null on error
+    }
   }
 
   async reject(id: number, reviewedBy: number, reviewNotes?: string): Promise<JoinRequest> {
@@ -113,49 +171,59 @@ export class JoinRequestsService {
     return updatedRequest;
   }
 
-  private async sendApprovalEmail(joinRequest: JoinRequest): Promise<void> {
+  private async sendApprovalEmail(joinRequest: JoinRequest, generatedPassword?: string): Promise<void> {
     try {
-      const signupUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/signup`;
+      const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
       
       await this.emailService.sendEmail({
         to: joinRequest.email,
-        subject: '🎉 Welcome to XMarket! Your request has been approved',
+        subject: '🎉 Welcome to XMarket! Your account has been created',
         html: `
           <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; background-color: #f8fafc;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
               <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Welcome to XMarket!</h1>
-              <p style="color: #e2e8f0; margin: 10px 0 0 0; font-size: 16px;">Your join request has been approved</p>
+              <p style="color: #e2e8f0; margin: 10px 0 0 0; font-size: 16px;">Your account has been created successfully</p>
             </div>
             
             <div style="background: white; padding: 40px 30px; margin: 0;">
               <h2 style="color: #2d3748; margin: 0 0 20px 0;">Hi ${joinRequest.fullName}! 👋</h2>
               
               <p style="color: #4a5568; line-height: 1.6; margin: 0 0 20px 0;">
-                Great news! Your request to join XMarket has been <strong style="color: #48bb78;">approved</strong>. 
-                You can now complete your registration and start exploring our university marketplace.
+                Great news! Your request to join XMarket has been <strong style="color: #48bb78;">approved</strong> and your account has been created. 
+                You can now log in and start exploring our university marketplace.
               </p>
+              
+              ${generatedPassword ? `
+              <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h3 style="color: #856404; margin: 0 0 10px 0; font-size: 18px;">🔐 Your Login Credentials:</h3>
+                <p style="color: #856404; margin: 5px 0;"><strong>Email:</strong> ${joinRequest.email}</p>
+                <p style="color: #856404; margin: 5px 0;"><strong>Password:</strong> <span style="background: #f8f9fa; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-weight: bold;">${generatedPassword}</span></p>
+                <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px;"><strong>⚠️ Important:</strong> Please change your password after your first login for security.</p>
+              </div>
+              ` : ''}
               
               <div style="background: #f7fafc; border-left: 4px solid #48bb78; padding: 20px; margin: 20px 0;">
                 <h3 style="color: #2d3748; margin: 0 0 10px 0; font-size: 18px;">Next Steps:</h3>
                 <ol style="color: #4a5568; margin: 0; padding-left: 20px; line-height: 1.6;">
-                  <li>Click the button below to complete your registration</li>
-                  <li>Create a secure password for your account</li>
-                  <li>Verify your email address</li>
+                  <li>Click the button below to log into your account</li>
+                  <li>Change your password to something secure and memorable</li>
+                  <li>Complete your profile setup</li>
                   <li>Start exploring and selling on XMarket!</li>
                 </ol>
               </div>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${signupUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
-                  Complete Registration →
+                <a href="${loginUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
+                  Login to Your Account →
                 </a>
               </div>
               
               <div style="background: #edf2f7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h4 style="color: #2d3748; margin: 0 0 10px 0;">📧 Your Registration Details:</h4>
+                <h4 style="color: #2d3748; margin: 0 0 10px 0;">📧 Your Account Details:</h4>
                 <p style="color: #4a5568; margin: 5px 0;"><strong>Email:</strong> ${joinRequest.email}</p>
                 <p style="color: #4a5568; margin: 5px 0;"><strong>Name:</strong> ${joinRequest.fullName}</p>
                 <p style="color: #4a5568; margin: 5px 0;"><strong>WhatsApp:</strong> ${joinRequest.whatsappNumber}</p>
+                <p style="color: #4a5568; margin: 5px 0;"><strong>Department:</strong> ${joinRequest.department || 'Not specified'}</p>
               </div>
               
               <p style="color: #718096; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
@@ -166,7 +234,7 @@ export class JoinRequestsService {
             
             <div style="background: #2d3748; padding: 20px; text-align: center; color: #a0aec0; font-size: 12px;">
               <p style="margin: 0;">© 2025 XMarket - University Marketplace Platform</p>
-              <p style="margin: 5px 0 0 0;">This email was sent because your join request was approved.</p>
+              <p style="margin: 5px 0 0 0;">This email was sent because your account was created by our admin team.</p>
             </div>
           </div>
         `,

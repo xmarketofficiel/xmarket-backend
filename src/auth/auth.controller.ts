@@ -2,12 +2,15 @@ import { Controller, Post, Body, Res, Req, Get, Patch, Param, Query, ValidationP
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
+import { AdminAuthService } from '../admin/services/admin-auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
+import { VerifyDiscord1337Dto } from './dto/verify-discord-1337.dto';
 import { CreateJoinRequestDto } from '../join-requests/dto/create-join-request.dto';
 import { UpdateJoinRequestDto } from '../join-requests/dto/update-join-request.dto';
 import { JoinRequestsService } from '../join-requests/join-requests.service';
@@ -18,9 +21,9 @@ import { User } from '../users/entities/user.entity';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  // Updated auth controller with admin cookie support
   constructor(
     private authService: AuthService,
+    private adminAuthService: AdminAuthService,
     private joinRequestsService: JoinRequestsService
   ) {}
 
@@ -79,13 +82,14 @@ export class AuthController {
 
   @Public()
   @Post('admin/login')
-  @ApiOperation({ summary: 'Admin login' })
+  @ApiOperation({ summary: 'Admin login - uses separate admin_users table' })
   @ApiResponse({ status: 200, description: 'Admin logged in successfully' })
   async adminLogin(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response
   ) {
-    const result = await this.authService.adminLogin(loginDto);
+    // Use AdminAuthService instead of regular AuthService
+    const result = await this.adminAuthService.adminLogin(loginDto);
     
     // Set HTTP-only cookies for admin session
     response.cookie('admin_token', result.accessToken, {
@@ -138,13 +142,24 @@ export class AuthController {
   }
 
   @Public()
+  @Post('verify-reset-otp')
+  @ApiOperation({ summary: 'Verify password reset OTP' })
+  @ApiResponse({ status: 200, description: 'OTP verified successfully' })
+  async verifyResetOtp(@Body() verifyResetOtpDto: VerifyResetOtpDto) {
+    return this.authService.verifyPasswordResetOtp(
+      verifyResetOtpDto.email,
+      verifyResetOtpDto.code,
+    );
+  }
+
+  @Public()
   @Post('reset-password')
-  @ApiOperation({ summary: 'Reset password' })
+  @ApiOperation({ summary: 'Reset password with OTP' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(
       resetPasswordDto.email,
-      resetPasswordDto.otp,
+      resetPasswordDto.code,
       resetPasswordDto.newPassword,
     );
   }
@@ -249,5 +264,13 @@ export class AuthController {
       environment: process.env.NODE_ENV,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Public()
+  @Post('discord/verify-1337')
+  @ApiOperation({ summary: 'Verify Discord 1337 server membership' })
+  @ApiResponse({ status: 200, description: 'Discord verification completed' })
+  async verifyDiscord1337(@Body() verifyDto: VerifyDiscord1337Dto) {
+    return this.authService.verifyDiscord1337(verifyDto);
   }
 }

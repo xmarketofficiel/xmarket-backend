@@ -45,6 +45,9 @@ import { UserBlock } from './users/entities/user-block.entity';
 import { UserReport } from './users/entities/user-report.entity';
 import { WaitlistEmail } from './entities/waitlist-email.entity';
 import { JoinRequest } from './join-requests/entities/join-request.entity';
+import { FeaturedProductsModule } from './featured-products/featured-products.module';
+import { FeaturedProduct } from './featured-products/entities/featured-product.entity';
+import { AdminUser } from './admin/entities/admin-user.entity';
 
 @Module({
   imports: [
@@ -57,9 +60,17 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
         // Support for DATABASE_URL (with SSL) or individual DATABASE_* variables
         const databaseUrl = configService.get('DATABASE_URL');
         
-        if (databaseUrl) {
-          // Parse the DATABASE_URL to extract connection details
-          const url = new URL(databaseUrl);
+        if (databaseUrl && databaseUrl.trim() !== '') {
+          // Validate and parse the DATABASE_URL
+          let url: URL;
+          try {
+            url = new URL(databaseUrl);
+          } catch (error) {
+            throw new Error(
+              `Invalid DATABASE_URL format: ${error.message}. ` +
+              `Expected format: postgresql://username:password@host:port/database`
+            );
+          }
           return {
             type: 'postgres',
             host: url.hostname,
@@ -87,14 +98,24 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
               UserBlock,
               UserReport,
               WaitlistEmail,
-              JoinRequest
+              JoinRequest,
+              FeaturedProduct,
+              AdminUser
             ],
-            synchronize: true, // Auto-create tables if they don't exist
+            synchronize: false, // Using migrations instead - DO NOT ENABLE
             dropSchema: false, // Never drop existing data
             logging: process.env.NODE_ENV === 'development',
-            // SSL configuration for production (AWS RDS)
+            // Connection timeout settings
+            connectTimeoutMS: 10000, // 10 seconds
+            extra: {
+              connectionTimeoutMillis: 10000,
+              query_timeout: 10000,
+              statement_timeout: 10000,
+              idle_in_transaction_session_timeout: 10000,
+            },
+            // SSL configuration for production (Railway, AWS RDS, etc.)
             // This fixes the "self-signed certificate in certificate chain" error
-            ssl: (process.env.NODE_ENV === 'production' || (url.searchParams.get('sslmode') === 'require')) ? {
+            ssl: true ? {
               rejectUnauthorized: false,
               ca: undefined, // Don't require CA validation
             } : false,
@@ -129,9 +150,11 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
             UserBlock,
             UserReport,
             WaitlistEmail,
-            JoinRequest
+            JoinRequest,
+            FeaturedProduct,
+            AdminUser
           ],
-          synchronize: process.env.NODE_ENV === 'development',
+          synchronize: false, // Using migrations instead
           logging: process.env.NODE_ENV === 'development',
           // SSL configuration for production (AWS RDS)
           // This fixes the "self-signed certificate in certificate chain" error
@@ -169,6 +192,7 @@ import { JoinRequest } from './join-requests/entities/join-request.entity';
     AdminModule,
     WaitlistModule,
     JoinRequestsModule,
+    FeaturedProductsModule,
     CommonModule,
   ],
   providers: [

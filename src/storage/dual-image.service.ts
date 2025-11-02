@@ -75,7 +75,8 @@ export class DualImageService {
   }
 
   /**
-   * Upload and resize image to both Cloudinary and DO Spaces
+   * Upload original image to both Cloudinary and DO Spaces (no variants)
+   * DO Spaces is PRIMARY, Cloudinary is BACKUP
    */
   async uploadImageToBothServices(
     imageBuffer: Buffer,
@@ -94,42 +95,39 @@ export class DualImageService {
     this.logger.log(`🚀 Starting dual upload for user ${userId}, category: ${category}, filename: ${filename}`);
 
     try {
-      // Upload original to Cloudinary (with their built-in transformations)
-      this.logger.log('📤 Starting Cloudinary upload...');
-      const cloudinaryResult = await this.uploadToCloudinary(
+      // Upload to DO Spaces FIRST (primary storage) - WAIT for it
+      this.logger.log('📤 Starting DigitalOcean Spaces upload (PRIMARY)...');
+      const spacesResult = await this.uploadOriginalToSpaces(
         imageBuffer,
         userId,
         category,
         filename,
         itemId
       );
-      response.primary = cloudinaryResult;
-      this.logger.log(`✅ Cloudinary upload result: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
+      
+      response.primary = spacesResult;
+      this.logger.log(`✅ DO Spaces upload: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
 
-      // Resize and upload multiple variants to DO Spaces
-      this.logger.log('📤 Starting DigitalOcean Spaces upload...');
-      const spacesResult = await this.resizeAndUploadToSpaces(
-        imageBuffer,
-        userId,
-        category,
-        filename,
-        itemId
-      );
-      response.backup = spacesResult;
-      this.logger.log(`✅ Spaces upload result: ${spacesResult.success ? 'SUCCESS' : 'FAILED'}`);
-
-      // Set recommended URLs
-      response.recommendedUrl = cloudinaryResult.cloudinaryUrl || spacesResult.spacesUrl || '';
+      // Set recommended URL immediately from DO Spaces
+      response.recommendedUrl = spacesResult.spacesUrl || '';
       response.fallbackUrl = spacesResult.spacesUrl;
 
-      // Create variant URLs mapping
-      if (spacesResult.spacesVariants) {
-        spacesResult.spacesVariants.forEach(variant => {
-          response.variants![variant.variant] = variant.spacesUrl;
+      // Upload to Cloudinary in BACKGROUND (backup only)
+      // Don't await - let it complete asynchronously
+      this.logger.log('📤 Starting Cloudinary upload in background (backup)...');
+      this.uploadToCloudinary(imageBuffer, userId, category, filename, itemId)
+        .then((cloudinaryResult) => {
+          this.logger.log(`✅ Background Cloudinary upload: ${cloudinaryResult.success ? 'SUCCESS' : 'FAILED'}`);
+          response.backup = cloudinaryResult;
+        })
+        .catch((error) => {
+          this.logger.warn(`⚠️ Background Cloudinary upload failed (non-critical): ${error.message}`);
+          response.backup = { success: false, errors: [error.message] };
         });
-      }
 
-      this.logger.log(`🎯 Final result - Primary: ${response.primary.success}, Backup: ${response.backup.success}, URL: ${response.recommendedUrl}`);
+      // Return immediately with DO Spaces URL - don't wait for Cloudinary
+
+      this.logger.log(`🎯 Final result - Primary (DO Spaces): ${response.primary.success}, Backup (Cloudinary): ${response.backup.success}, URL: ${response.recommendedUrl}`);
 
     } catch (error) {
       this.logger.error(`❌ Dual upload failed: ${error.message}`);
@@ -141,9 +139,9 @@ export class DualImageService {
   }
 
   /**
-   * Resize image to multiple variants and upload to DO Spaces
+   * Upload ORIGINAL image to DO Spaces (no resizing, just backup)
    */
-  private async resizeAndUploadToSpaces(
+  private async uploadOriginalToSpaces(
     imageBuffer: Buffer,
     userId: number,
     category: string,
@@ -151,12 +149,11 @@ export class DualImageService {
     itemId?: number
   ): Promise<ImageUploadResult> {
     const result: ImageUploadResult = { 
-      success: false, 
-      spacesVariants: [],
+      success: false,
       errors: [] 
     };
 
-    this.logger.log(`🔄 Starting Spaces upload for user ${userId}, category: ${category}`);
+    this.logger.log(`🔄 Starting Spaces original upload for user ${userId}, category: ${category}`);
 
     // Check if Spaces is configured
     if (!this.spacesService.isConfigured()) {
@@ -168,72 +165,26 @@ export class DualImageService {
     this.logger.log(`✅ Spaces configuration verified`);
 
     try {
-      // Process each variant
-      const resizePromises = this.imageVariants.map(async (variant) => {
-        try {
-          // Resize image using Sharp
-          const resizedBuffer = await sharp(imageBuffer)
-            .resize(variant.width, variant.height, {
-              fit: 'cover', // Crop to fill dimensions
-              position: 'center'
-            })
-            .jpeg({ quality: variant.quality }) // Convert to JPEG with compression
-            .toBuffer();
+      // Generate unique key for original image
+      const spacesKey = this.generateSpacesKey(
+        userId, 
+        category, 
+        filename,
+        itemId
+      );
 
-          // Generate unique key for this variant
-          const spacesKey = this.generateSpacesKeyWithVariant(
-            userId, 
-            category, 
-            filename, 
-            variant.name,
-            itemId
-          );
+      // Upload original image (no resizing)
+      const uploadResult = await this.spacesService.uploadBuffer(
+        imageBuffer,
+        spacesKey,
+        'image/jpeg'
+      );
 
-          // Upload to DO Spaces
-          const uploadResult = await this.spacesService.uploadBuffer(
-            resizedBuffer,
-            spacesKey,
-            'image/jpeg'
-          );
+      result.spacesUrl = uploadResult.publicUrl;
+      result.spacesKey = spacesKey;
+      result.success = true;
 
-          return {
-            variant: variant.name,
-            buffer: resizedBuffer,
-            size: resizedBuffer.length,
-            spacesKey,
-            spacesUrl: uploadResult.publicUrl
-          } as ResizedImageResult;
-
-        } catch (error) {
-          this.logger.warn(`Failed to resize variant ${variant.name}: ${error.message}`);
-          return null;
-        }
-      });
-
-      // Wait for all variants to complete
-      const resizedResults = await Promise.allSettled(resizePromises);
-      
-      // Collect successful uploads
-      result.spacesVariants = resizedResults
-        .filter(r => r.status === 'fulfilled' && r.value !== null)
-        .map(r => (r as PromiseFulfilledResult<ResizedImageResult>).value);
-
-      // Use medium variant as primary URL
-      const primaryVariant = result.spacesVariants.find(v => v.variant === 'medium') 
-                           || result.spacesVariants[0];
-      
-      if (primaryVariant) {
-        result.spacesUrl = primaryVariant.spacesUrl;
-        result.spacesKey = primaryVariant.spacesKey;
-        result.success = true;
-
-        // Calculate total space saved
-        const originalSize = imageBuffer.length;
-        const totalResizedSize = result.spacesVariants.reduce((sum, v) => sum + v.size, 0);
-        const spaceSaved = originalSize - (totalResizedSize / result.spacesVariants.length);
-        
-        this.logger.log(`Space optimization: Original ${this.formatBytes(originalSize)} → Avg variant ${this.formatBytes(totalResizedSize / result.spacesVariants.length)} (${Math.round((spaceSaved / originalSize) * 100)}% saved)`);
-      }
+      this.logger.log(`✅ Original image uploaded to Spaces: ${this.formatBytes(imageBuffer.length)}`);
 
     } catch (error) {
       this.logger.error(`Spaces upload failed: ${error.message}`);
@@ -539,7 +490,7 @@ export class DualImageService {
   /**
    * Get image metadata and validation
    */
-  validateImageFile(filename: string, size: number, maxSize: number = 5 * 1024 * 1024): boolean {
+  validateImageFile(filename: string, size: number, maxSize: number = 7 * 1024 * 1024): boolean {
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
     const extension = filename.toLowerCase().substring(filename.lastIndexOf('.'));
     
