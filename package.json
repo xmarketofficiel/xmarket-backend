@@ -32,7 +32,9 @@
     "migrate:admin-users": "node scripts/run-migration.js",
     "verify:admin-users": "node scripts/verify-admin-table.js",
     "reset:user": "ts-node -r tsconfig-paths/register scripts/reset-user.ts",
-    "test:email": "ts-node -r tsconfig-paths/register scripts/test-email-eligibility.ts"
+    "test:email": "ts-node -r tsconfig-paths/register scripts/test-email-eligibility.ts",
+    "db:create-tables": "ts-node -r tsconfig-paths/register scripts/create-tables.ts",
+    "db:generate-schema": "ts-node -r tsconfig-paths/register scripts/generate-schema.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.887.0",
