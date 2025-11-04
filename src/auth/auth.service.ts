@@ -175,7 +175,7 @@ export class AuthService {
       lastName: finalLastName,
       fullName: finalFullName, // Keep for backward compatibility
       department,
-      role: role,
+      userRole: role,
       address,
       whatsappNumber: normalizedPhone,
     };
