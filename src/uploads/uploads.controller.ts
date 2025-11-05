@@ -57,9 +57,9 @@ export class UploadsController {
     description: 'Presigned URL generated successfully',
     schema: {
       example: {
-        presignedUrl: 'https://nyc3.digitaloceanspaces.com/xmarket-app-dev/items/123/1634567890-abc123.jpg?X-Amz-Signature=...',
-        publicUrl: 'https://xmarket-app-dev.nyc3.digitaloceanspaces.com/items/123/1634567890-abc123.jpg',
-        key: 'items/123/1634567890-abc123.jpg',
+        presignedUrl: 'https://nyc3.digitaloceanspaces.com/xmarket-app-dev/items/a1b2c3d4e5f6g7h8/1634567890-abc123.jpg?X-Amz-Signature=...',
+        publicUrl: 'https://xmarket-app-dev.nyc3.digitaloceanspaces.com/items/a1b2c3d4e5f6g7h8/1634567890-abc123.jpg',
+        key: 'items/a1b2c3d4e5f6g7h8/1634567890-abc123.jpg',
         expiresIn: 3600,
         uploadInstructions: {
           method: 'PUT',

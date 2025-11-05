@@ -279,6 +279,7 @@ export class DualImageService {
 
   /**
    * Generate Cloudinary public ID with organized structure
+   * Uses hashed IDs to prevent enumeration attacks
    */
   private generateCloudinaryPublicId(
     userId: number,
@@ -289,10 +290,14 @@ export class DualImageService {
     const timestamp = Date.now();
     const sanitizedFilename = filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9]/g, '_');
     
-    if (category === 'item' && itemId) {
-      return `xmarket/users/${userId}/items/${itemId}/${timestamp}_${sanitizedFilename}`;
+    // Generate secure hashes for user and item IDs
+    const userHash = this.spacesService['generateSecureHash'](userId);
+    const itemHash = itemId ? this.spacesService['generateSecureHash'](itemId) : null;
+    
+    if (category === 'item' && itemHash) {
+      return `xmarket/users/${userHash}/items/${itemHash}/${timestamp}_${sanitizedFilename}`;
     } else {
-      return `xmarket/users/${userId}/${category}/${timestamp}_${sanitizedFilename}`;
+      return `xmarket/users/${userHash}/${category}/${timestamp}_${sanitizedFilename}`;
     }
   }
 
