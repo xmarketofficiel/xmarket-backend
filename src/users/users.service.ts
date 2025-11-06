@@ -434,10 +434,23 @@ export class UsersService {
   async getUserItems(userId: number): Promise<Item[]> {
     const user = await this.findOne(userId);
     
-    return this.itemsRepository.find({
-      where: { sellerId: userId, isActive: true },
-      relations: ['images', 'seller'],
-      order: { createdAt: 'DESC' }
-    });
+    return this.itemsRepository
+      .createQueryBuilder('item')
+      .leftJoinAndSelect('item.images', 'images')
+      .leftJoin('item.seller', 'seller')
+      .addSelect([
+        'seller.id',
+        'seller.fullName',
+        'seller.firstName',
+        'seller.lastName',
+        'seller.email',
+        'seller.profileImageUrl',
+        'seller.profileImageSpacesUrl',
+        'seller.isVerified'
+      ])
+      .where('item.sellerId = :userId', { userId })
+      .andWhere('item.isActive = :isActive', { isActive: true })
+      .orderBy('item.createdAt', 'DESC')
+      .getMany();
   }
 }

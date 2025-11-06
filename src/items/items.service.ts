@@ -56,7 +56,19 @@ export class ItemsService {
       const { page = 1, limit = 12, category, minPrice, maxPrice, condition, search, sortBy = 'createdAt', sortOrder = 'DESC' } = searchDto;
 
       const query = this.itemsRepository.createQueryBuilder('item')
-        .leftJoinAndSelect('item.seller', 'seller')
+        .leftJoin('item.seller', 'seller')
+        .addSelect([
+          'seller.id',
+          'seller.firstName',
+          'seller.lastName',
+          'seller.fullName',
+          'seller.email',
+          'seller.profileImageUrl',
+          'seller.profileImageSpacesUrl',
+          'seller.isVerified',
+          'seller.showSoldItems',
+          'seller.showPurchases'
+        ])
         .leftJoinAndSelect('item.images', 'images')
         .where('item.isActive = :isActive', { isActive: true })
         .andWhere('item.isSold = :isSold', { isSold: false })
@@ -123,10 +135,27 @@ export class ItemsService {
   }
 
   async findOne(id: number): Promise<Item> {
-    const item = await this.itemsRepository.findOne({
-      where: { id },
-      relations: ['seller', 'images', 'interests'],
-    });
+    const item = await this.itemsRepository
+      .createQueryBuilder('item')
+      .leftJoin('item.seller', 'seller')
+      .addSelect([
+        'seller.id',
+        'seller.firstName',
+        'seller.lastName',
+        'seller.fullName',
+        'seller.email',
+        'seller.profileImageUrl',
+        'seller.profileImageSpacesUrl',
+        'seller.isVerified',
+        'seller.showSoldItems',
+        'seller.showPurchases',
+        'seller.showPhone',
+        'seller.whatsappNumber'
+      ])
+      .leftJoinAndSelect('item.images', 'images')
+      .leftJoinAndSelect('item.interests', 'interests')
+      .where('item.id = :id', { id })
+      .getOne();
 
     if (!item) {
       throw new NotFoundException(`Item with ID ${id} not found`);
@@ -616,32 +645,32 @@ export class ItemsService {
 
       const user = { id: userId } as User;
       
-      // Use try-catch for database operations
-      const [favorites, total] = await this.itemFavoritesRepository.findAndCount({
-        where: { user },
-        relations: ['item', 'item.seller', 'item.images'],
-        order: { createdAt: 'DESC' },
-        take: validatedLimit,
-        skip: (validatedPage - 1) * validatedLimit,
-      });
+      // Use QueryBuilder to select only safe seller fields
+      const [favorites, total] = await this.itemFavoritesRepository
+        .createQueryBuilder('favorite')
+        .leftJoinAndSelect('favorite.item', 'item')
+        .leftJoin('item.seller', 'seller')
+        .addSelect([
+          'seller.id',
+          'seller.fullName',
+          'seller.firstName',
+          'seller.lastName',
+          'seller.email',
+          'seller.profileImageUrl',
+          'seller.profileImageSpacesUrl',
+          'seller.isVerified'
+        ])
+        .leftJoinAndSelect('item.images', 'images')
+        .where('favorite.userId = :userId', { userId })
+        .orderBy('favorite.createdAt', 'DESC')
+        .take(validatedLimit)
+        .skip((validatedPage - 1) * validatedLimit)
+        .getManyAndCount();
 
       // Safely extract items with null checks
       const items = favorites
-        .filter(favorite => favorite && favorite.item) // Filter out corrupted data
-        .map(favorite => {
-          const item = favorite.item;
-          // Safely handle seller information (remove sensitive fields if they exist)
-          if (item.seller) {
-            // Create a safe version without potentially sensitive fields
-            const { ...safeSeller } = item.seller;
-            // Remove any authentication-related fields that might exist
-            delete (safeSeller as any).password;
-            delete (safeSeller as any).resetToken;
-            delete (safeSeller as any).emailVerificationToken;
-            item.seller = safeSeller;
-          }
-          return item;
-        });
+        .filter(favorite => favorite && favorite.item)
+        .map(favorite => favorite.item);
 
       return {
         success: true,

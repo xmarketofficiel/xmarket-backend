@@ -17,8 +17,11 @@ export class UsersController {
   @Get('profile')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
-  async getProfile(@CurrentUser() user: User): Promise<User> {
-    return this.usersService.findOne(user.id);
+  async getProfile(@CurrentUser() user: User) {
+    const fullUser = await this.usersService.findOne(user.id);
+    // Exclude sensitive data before returning
+    const { passwordHash, ...safeUser } = fullUser;
+    return safeUser;
   }
 
   @Patch('profile')
@@ -27,8 +30,11 @@ export class UsersController {
   async updateProfile(
     @CurrentUser() user: User,
     @Body() updateUserDto: UpdateUserDto,
-  ): Promise<User> {
-    return this.usersService.update(user.id, updateUserDto);
+  ) {
+    const updatedUser = await this.usersService.update(user.id, updateUserDto);
+    // Exclude sensitive data before returning
+    const { passwordHash, ...safeUser } = updatedUser;
+    return safeUser;
   }
 
   @Patch('change-password')
@@ -70,8 +76,11 @@ export class UsersController {
   async uploadAvatar(
     @CurrentUser() user: User,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<User> {
-    return this.usersService.updateProfileImageWithCloudinary(user.id, file);
+  ) {
+    const updatedUser = await this.usersService.updateProfileImageWithCloudinary(user.id, file);
+    // Exclude sensitive data before returning
+    const { passwordHash, ...safeUser } = updatedUser;
+    return safeUser;
   }
 
   @Get(':id')
