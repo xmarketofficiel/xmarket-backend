@@ -816,9 +816,17 @@ export class AdminService {
       email: createUserDto.email,
       whatsappNumber: normalizedPhone,
       passwordHash: hashedPassword,
-      role: UserRole.USER, // Regular users get 'user' role
-      status: UserStatus.ACTIVE,
-      isVerified: true, // Admin-created users are pre-verified
+      role: createUserDto.role ? UserRole[createUserDto.role.toUpperCase() as keyof typeof UserRole] : UserRole.USER,
+      status: createUserDto.status ? UserStatus[createUserDto.status.toUpperCase() as keyof typeof UserStatus] : UserStatus.ACTIVE,
+      isVerified: createUserDto.isVerified !== undefined ? createUserDto.isVerified : true,
+      firstName: createUserDto.firstName,
+      lastName: createUserDto.lastName,
+      department: createUserDto.department,
+      userRole: createUserDto.userRole,
+      address: createUserDto.address,
+      showSoldItems: createUserDto.showSoldItems !== undefined ? createUserDto.showSoldItems : true,
+      showPurchases: createUserDto.showPurchases !== undefined ? createUserDto.showPurchases : true,
+      showPhone: createUserDto.showPhone !== undefined ? createUserDto.showPhone : false,
     });
 
     const savedUser = await this.userRepository.save(user);

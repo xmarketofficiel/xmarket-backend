@@ -80,7 +80,7 @@ export interface AdminReportResponse {
   createdAt: Date;
 }
 
-import { IsEmail, IsString, IsEnum, MinLength, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsString, IsEnum, MinLength, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsMoroccanPhone } from '../../common/validators/moroccan-phone.validator';
 
@@ -136,6 +136,61 @@ export class CreateUserDto {
   @IsString()
   @MinLength(8)
   password: string;
+
+  @ApiProperty({ example: 'John', description: 'First name', required: false })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiProperty({ example: 'Doe', description: 'Last name', required: false })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiProperty({ example: 'Computer Science', description: 'Department', required: false })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiProperty({ example: 'student', description: 'User role type', enum: ['student', 'staff', 'seller'], required: false })
+  @IsOptional()
+  @IsEnum(['student', 'staff', 'seller'])
+  userRole?: 'student' | 'staff' | 'seller';
+
+  @ApiProperty({ example: '123 Main St, City', description: 'User address', required: false })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiProperty({ example: 'user', description: 'System role', enum: ['user', 'admin', 'super_admin'], required: false })
+  @IsOptional()
+  @IsEnum(['user', 'admin', 'super_admin'])
+  role?: 'user' | 'admin' | 'super_admin';
+
+  @ApiProperty({ example: 'active', description: 'Account status', enum: ['active', 'suspended', 'banned'], required: false })
+  @IsOptional()
+  @IsEnum(['active', 'suspended', 'banned'])
+  status?: 'active' | 'suspended' | 'banned';
+
+  @ApiProperty({ example: true, description: 'Is email verified', required: false })
+  @IsOptional()
+  @IsBoolean()
+  isVerified?: boolean;
+
+  @ApiProperty({ example: true, description: 'Show sold items on profile', required: false })
+  @IsOptional()
+  @IsBoolean()
+  showSoldItems?: boolean;
+
+  @ApiProperty({ example: true, description: 'Show purchases on profile', required: false })
+  @IsOptional()
+  @IsBoolean()
+  showPurchases?: boolean;
+
+  @ApiProperty({ example: false, description: 'Show phone number on profile', required: false })
+  @IsOptional()
+  @IsBoolean()
+  showPhone?: boolean;
 }
 
 export interface CreateItemDto {

@@ -31,11 +31,25 @@ export class InterestsService {
   }
 
   async findByUser(userId: number): Promise<Interest[]> {
-    return this.interestsRepository.find({
-      where: { userId, isActive: true },
-      relations: ['item', 'item.seller', 'item.images'],
-      order: { createdAt: 'DESC' },
-    });
+    return this.interestsRepository
+      .createQueryBuilder('interest')
+      .leftJoinAndSelect('interest.item', 'item')
+      .leftJoin('item.seller', 'seller')
+      .addSelect([
+        'seller.id',
+        'seller.fullName',
+        'seller.firstName',
+        'seller.lastName',
+        'seller.email',
+        'seller.profileImageUrl',
+        'seller.profileImageSpacesUrl',
+        'seller.isVerified'
+      ])
+      .leftJoinAndSelect('item.images', 'images')
+      .where('interest.userId = :userId', { userId })
+      .andWhere('interest.isActive = :isActive', { isActive: true })
+      .orderBy('interest.createdAt', 'DESC')
+      .getMany();
   }
 
   async remove(id: number, userId: number): Promise<void> {
