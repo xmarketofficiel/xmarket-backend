@@ -9,7 +9,8 @@ export class CategoriesController {
 
   @Get()
   async getCategories() {
-    return this.categoriesService.getCategories();
+    const data = await this.categoriesService.getCategories();
+    return data;
   }
 
   @Get(':id/items')
@@ -20,7 +21,8 @@ export class CategoriesController {
     return this.categoriesService.getCategoryItems(categoryId, searchParams);
   }
 
-  @Post('seed')
+  @Get('seed')
+  @Public()
   async seedCategories() {
     // Only allow seeding in development environment
     if (process.env.NODE_ENV === 'production') {

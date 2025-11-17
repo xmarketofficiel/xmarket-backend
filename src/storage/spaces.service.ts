@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createHash } from 'crypto';
 
 export interface PresignedUrlResponse {
   presignedUrl: string;
@@ -161,6 +162,7 @@ export class SpacesService {
 
   /**
    * Generate a secure file path for storage organized by bucket folders
+   * Uses hashed UUIDs to prevent enumeration attacks
    * Follows the bucket structure: /items and /profile
    */
   generateSecurePath(userId: number, category: 'avatar' | 'item' | 'service', filename: string, itemId?: number, variant?: string): string {
@@ -170,38 +172,56 @@ export class SpacesService {
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = filename.split('.').pop();
     
+    // Generate secure hashed folder names instead of using raw IDs
+    const userHash = this.generateSecureHash(userId);
+    const itemHash = itemId ? this.generateSecureHash(itemId) : null;
+    
     let basePath = '';
     
     switch (category) {
       case 'avatar':
-        // Profile images go in the /profile folder
+        // Profile images go in the /profile folder with hashed user ID
         if (variant) {
-          basePath = `profile/${userId}/${variant}`;
+          basePath = `profile/${userHash}/${variant}`;
         } else {
-          basePath = `profile/${userId}`;
+          basePath = `profile/${userHash}`;
         }
         break;
       case 'item':
-        // Item images go in the /items folder
+        // Item images go in the /items folder with hashed item ID
         if (variant) {
-          // For optimized variants: /items/[itemId]/[variant]/filename
-          basePath = itemId ? `items/${itemId}/${variant}` : `items/user-${userId}/${variant}`;
+          // For optimized variants: /items/[hashedItemId]/[variant]/filename
+          basePath = itemHash ? `items/${itemHash}/${variant}` : `items/${userHash}/${variant}`;
         } else {
-          // For original images: /items/[itemId]/filename
-          basePath = itemId ? `items/${itemId}` : `items/user-${userId}`;
+          // For original images: /items/[hashedItemId]/filename
+          basePath = itemHash ? `items/${itemHash}` : `items/${userHash}`;
         }
         break;
       case 'service':
         // Services also go in items folder for now
-        basePath = `items/services/user-${userId}`;
+        basePath = `items/services/${userHash}`;
         break;
       default:
-        basePath = `items/misc/user-${userId}`;
+        basePath = `items/misc/${userHash}`;
     }
 
     const finalPath = `${basePath}/${timestamp}-${randomString}.${fileExtension}`;
     this.logger.debug(`🔍 Final generated path: ${finalPath}`);
     return finalPath;
+  }
+
+  /**
+   * Generate a secure hash from an ID to prevent enumeration
+   * Uses SHA-256 with a secret salt for security
+   */
+  private generateSecureHash(id: number): string {
+    // Use a secret from environment or a default salt
+    const secret = process.env.FILE_PATH_SECRET || 'xmarket-default-secret-change-in-production';
+    const hash = createHash('sha256')
+      .update(`${secret}-${id}`)
+      .digest('hex');
+    // Return first 16 characters for shorter paths while maintaining security
+    return hash.substring(0, 16);
   }
 
   /**
