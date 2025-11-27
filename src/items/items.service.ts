@@ -189,13 +189,15 @@ export class ItemsService {
         if (ids.length > 0) {
           items = await diverseQuery
             .andWhere('item.id IN (:...ids)', { ids })
-            .orderBy(`CASE ${ids.map((id, idx) => `WHEN item.id = ${id} THEN ${idx}`).join(' ')} END`)
+            .orderBy('images.imageOrder', 'ASC')
+            .addOrderBy(`CASE ${ids.map((id, idx) => `WHEN item.id = ${id} THEN ${idx}`).join(' ')} END`)
             .getMany();
         }
       } else {
         // Regular query with normal pagination when filtering by category or searching
         items = await baseQuery
-          .orderBy(orderByColumn, sortOrder.toUpperCase() as 'ASC' | 'DESC')
+          .orderBy('images.imageOrder', 'ASC')
+          .addOrderBy(orderByColumn, sortOrder.toUpperCase() as 'ASC' | 'DESC')
           .skip((page - 1) * limit)
           .take(limit)
           .getMany();
@@ -238,6 +240,7 @@ export class ItemsService {
       ])
       .leftJoinAndSelect('item.images', 'images')
       .leftJoinAndSelect('item.interests', 'interests')
+      .orderBy('images.imageOrder', 'ASC')
       .where('item.id = :id', { id })
       .getOne();
 
@@ -746,7 +749,8 @@ export class ItemsService {
         ])
         .leftJoinAndSelect('item.images', 'images')
         .where('favorite.userId = :userId', { userId })
-        .orderBy('favorite.createdAt', 'DESC')
+        .orderBy('images.imageOrder', 'ASC')
+        .addOrderBy('favorite.createdAt', 'DESC')
         .take(validatedLimit)
         .skip((validatedPage - 1) * validatedLimit)
         .getManyAndCount();
@@ -1146,7 +1150,8 @@ export class ItemsService {
       .leftJoinAndSelect('purchase.buyer', 'buyer')
       .where('item.sellerId = :sellerId', { sellerId })
       .andWhere('purchase.status = :status', { status: PurchaseStatus.BUYER_CONFIRMED })
-      .orderBy('purchase.createdAt', 'DESC')
+      .orderBy('images.imageOrder', 'ASC')
+      .addOrderBy('purchase.createdAt', 'DESC')
       .getMany();
   }
 
