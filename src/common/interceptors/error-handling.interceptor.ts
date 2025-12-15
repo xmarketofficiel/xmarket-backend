@@ -22,11 +22,20 @@ export class ErrorHandlingInterceptor implements NestInterceptor {
       catchError((error) => {
         const duration = Date.now() - startTime;
         
-        // Basic error logging
-        this.logger.error(
-          `[${request.method}] ${request.url} - Error: ${error.message} - Status: ${error.status || 500} - Duration: ${duration}ms`,
-          error.stack
-        );
+        // Log validation errors with full details
+        if (error instanceof HttpException && error.getStatus() === 400) {
+          const errorResponse = error.getResponse();
+          this.logger.error(
+            `[${request.method}] ${request.url} - Validation Error - Status: 400 - Duration: ${duration}ms`,
+            JSON.stringify(errorResponse, null, 2)
+          );
+        } else {
+          // Basic error logging for other errors
+          this.logger.error(
+            `[${request.method}] ${request.url} - Error: ${error.message} - Status: ${error.status || 500} - Duration: ${duration}ms`,
+            error.stack
+          );
+        }
 
         // Simple error sanitization
         const sanitizedError = this.sanitizeError(error);
