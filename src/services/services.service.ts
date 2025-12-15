@@ -9,6 +9,7 @@ import { User } from './../users/entities/user.entity';
 import { Service } from './entities/service.entity';
 import { Rating } from './entities/rating.entity';
 import { RatingCalculationService } from './rating-calculation.service';
+import { ServiceCategoriesService } from './service-categories.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { SearchServicesDto } from './dto/search-services.dto';
@@ -24,11 +25,24 @@ export class ServicesService {
     @InjectRepository(Rating)
     private ratingRepository: Repository<Rating>,
     private ratingCalculationService: RatingCalculationService,
+    private serviceCategoriesService: ServiceCategoriesService,
   ) {}
 
   async create(createServiceDto: CreateServiceDto, userId: string) {
+    // Auto-create category reference in DB if it doesn't exist
+    // This ensures categories are always synced from config without needing migrations
+    const category = await this.serviceCategoriesService.ensureCategoryExists(
+      createServiceDto.serviceCategoryId
+    );
+
     const service = this.serviceRepository.create({
-      ...createServiceDto,
+      title: createServiceDto.title,
+      description: createServiceDto.description,
+      priceFrom: createServiceDto.price,
+      serviceCategoryId: category.id,
+      type: createServiceDto.type,
+      departureTime: createServiceDto.departureTime ? new Date(createServiceDto.departureTime) : null,
+      location: createServiceDto.location,
       userId,
     });
 
@@ -38,7 +52,11 @@ export class ServicesService {
   }
 
   async findAll(searchDto: SearchServicesDto): Promise<PaginatedResponse<any>> {
-    const { page, limit, category, search, location, sortBy, sortOrder } = searchDto;
+    const { category, search, location } = searchDto;
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 10;
+    const sortBy = searchDto.sortBy || 'createdAt';
+    const sortOrder = searchDto.sortOrder || 'DESC';
     const offset = (page - 1) * limit;
 
     const queryBuilder = this.serviceRepository
@@ -48,7 +66,7 @@ export class ServicesService {
 
     // Apply filters
     if (category) {
-      queryBuilder.andWhere('service.category = :category', { category });
+      queryBuilder.andWhere('service.serviceCategoryId = :category', { category });
     }
 
     if (search) {

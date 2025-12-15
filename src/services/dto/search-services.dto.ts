@@ -1,26 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsOptional,
-  IsEnum,
   IsString,
   IsInt,
   Min,
   Max,
   MaxLength,
+  IsUUID,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
-import { ServiceCategory } from '../enum/service-category.enum';
+import { Transform, Type } from 'class-transformer';
 
 export class SearchServicesDto {
   @ApiProperty({
-    description: 'Filter by service category',
-    enum: ServiceCategory,
+    description: 'Filter by service category ID (UUID)',
     required: false,
-    example: ServiceCategory.CLEANER,
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsOptional()
-  @IsEnum(ServiceCategory)
-  category?: ServiceCategory;
+  @IsString()
+  category?: string;
 
   @ApiProperty({
     description: 'Search term for service title or description',
@@ -52,25 +50,25 @@ export class SearchServicesDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Transform(({ value }) => parseInt(value) || 1)
-  page: number = 1;
+  page?: number;
 
   @ApiProperty({
     description: 'Number of items per page',
     example: 10,
     minimum: 1,
-    maximum: 50,
+    maximum: 100,
     default: 10,
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(50)
-  @Transform(({ value }) => parseInt(value) || 10)
-  limit: number = 10;
+  @Max(100)
+  limit?: number;
 
   @ApiProperty({
     description: 'Sort by field',
@@ -81,7 +79,7 @@ export class SearchServicesDto {
   })
   @IsOptional()
   @IsString()
-  sortBy: 'createdAt' | 'price' | 'averageRating' | 'title' = 'createdAt';
+  sortBy?: 'createdAt' | 'price' | 'averageRating' | 'title';
 
   @ApiProperty({
     description: 'Sort order',
@@ -92,5 +90,5 @@ export class SearchServicesDto {
   })
   @IsOptional()
   @IsString()
-  sortOrder: 'ASC' | 'DESC' = 'DESC';
+  sortOrder?: 'ASC' | 'DESC';
 }

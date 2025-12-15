@@ -67,7 +67,7 @@ export class RatingCalculationService {
     
     await this.serviceRepository.update(serviceId, {
       averageRating: average,
-      totalRatings: total,
+      totalReviews: total,
     });
   }
 
