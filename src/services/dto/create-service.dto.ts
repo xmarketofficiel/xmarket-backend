@@ -52,10 +52,10 @@ export class CreateServiceDto {
   price: number;
 
   @ApiProperty({
-    description: 'Service category ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Service category slug or ID',
+    example: 'covoiturage',
   })
-  @IsUUID()
+  @IsString()
   @IsNotEmpty()
   serviceCategoryId: string;
 

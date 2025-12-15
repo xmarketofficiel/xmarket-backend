@@ -121,10 +121,11 @@ export class ServiceCategoriesService {
       where: { slug },
     });
 
-    // If not in DB, create minimal reference (ONLY slug and isActive)
-    // All other data comes from config
+    // If not in DB, create minimal reference with required fields
+    // Other display data comes from config
     if (!dbCategory) {
       dbCategory = await this.serviceCategoryRepository.save({
+        name: config.name,
         slug,
         isActive: true,
       });
