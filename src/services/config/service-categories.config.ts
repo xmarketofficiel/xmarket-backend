@@ -15,27 +15,26 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
-
+// Use relative paths - frontend will resolve via API proxy
 export const SERVICE_CATEGORIES: ServiceCategoryConfig[] = [
   {
     name: 'Covoiturage',
     icon: '🚗',
-    backgroundImage: `${BACKEND_URL}/images/categories/covoiturage.jpg`,
+    backgroundImage: `/images/categories/covoiturage.jpg`,
     type: 'time-based',
     displayOrder: 1,
   },
   {
     name: 'Laundry',
     icon: '👔',
-    backgroundImage: `${BACKEND_URL}/images/categories/laundry.jpg`,
+    backgroundImage: `/images/categories/laundry.jpg`,
     type: 'ongoing',
     displayOrder: 2,
   },
   {
     name: 'Taxi',
     icon: '🚕',
-    backgroundImage: `${BACKEND_URL}/images/categories/taxi.jpg`,
+    backgroundImage: `/images/categories/taxi.jpg`,
     type: 'time-based',
     displayOrder: 3,
   },
