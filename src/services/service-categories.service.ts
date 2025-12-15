@@ -121,12 +121,16 @@ export class ServiceCategoriesService {
       where: { slug },
     });
 
-    // If not in DB, create minimal reference with required fields
-    // Other display data comes from config
+    // If not in DB, create entry with required fields from config
     if (!dbCategory) {
       dbCategory = await this.serviceCategoryRepository.save({
         name: config.name,
         slug,
+        description: config.name,
+        icon: config.icon,
+        backgroundImage: config.backgroundImage,
+        type: config.type,
+        displayOrder: config.displayOrder,
         isActive: true,
       });
     }
