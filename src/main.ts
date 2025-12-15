@@ -23,6 +23,11 @@ async function bootstrap() {
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
+    disableErrorMessages: false,
+    validationError: {
+      target: false,
+      value: true,
+    },
   }));
 
   // Global exception filter
