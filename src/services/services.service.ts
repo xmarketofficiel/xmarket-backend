@@ -90,9 +90,26 @@ export class ServicesService {
     // Get total count for pagination
     const total = await queryBuilder.getCount();
 
-    // Apply sorting and pagination
+    // Apply urgency-based sorting: time-based services with soonest departure first, then newest
+    // We use CASE to create a priority score in SQL
     const services = await queryBuilder
-      .orderBy(`service.${sortBy}`, sortOrder)
+      .addSelect(`
+        CASE 
+          WHEN service.type = 'time-based' AND service.departureTime IS NOT NULL 
+          THEN 1 
+          ELSE 2 
+        END
+      `, 'type_priority')
+      .addSelect(`
+        CASE 
+          WHEN service.type = 'time-based' AND service.departureTime IS NOT NULL 
+          THEN EXTRACT(EPOCH FROM service.departureTime)
+          ELSE 0
+        END
+      `, 'departure_epoch')
+      .orderBy('type_priority', 'ASC')
+      .addOrderBy('departure_epoch', 'ASC')
+      .addOrderBy('service.createdAt', 'DESC')
       .skip(offset)
       .take(limit)
       .getMany();

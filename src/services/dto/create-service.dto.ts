@@ -30,12 +30,11 @@ export class CreateServiceDto {
   @ApiProperty({
     description: 'Detailed description of the service',
     example: 'Offering carpooling service from campus to Rabat city center. Comfortable ride with air conditioning.',
-    minLength: 10,
+    minLength: 1,
     maxLength: 2000,
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(10)
   @MaxLength(2000)
   description: string;
 
