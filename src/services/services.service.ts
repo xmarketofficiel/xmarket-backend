@@ -62,7 +62,12 @@ export class ServicesService {
     const queryBuilder = this.serviceRepository
       .createQueryBuilder('service')
       .leftJoinAndSelect('service.user', 'user')
-      .where('service.isActive = :isActive', { isActive: true });
+      .where('service.isActive = :isActive', { isActive: true })
+      // Exclude expired time-based services (departure_time has passed)
+      .andWhere(
+        '(service.type != :timeBased OR service.departureTime IS NULL OR service.departureTime > :now)',
+        { timeBased: 'time-based', now: new Date() }
+      );
 
     // Apply filters
     if (category) {
@@ -246,5 +251,29 @@ export class ServicesService {
     });
 
     return services;
+  }
+
+  /**
+   * Deactivate all expired time-based services
+   * Can be called manually or via a scheduled task
+   */
+  async deactivateExpiredServices(): Promise<{ deactivatedCount: number }> {
+    const result = await this.serviceRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isActive: false })
+      .where('type = :type', { type: 'time-based' })
+      .andWhere('departureTime IS NOT NULL')
+      .andWhere('departureTime < :now', { now: new Date() })
+      .andWhere('isActive = :isActive', { isActive: true })
+      .execute();
+
+    const deactivatedCount = result.affected || 0;
+    
+    if (deactivatedCount > 0) {
+      console.log(`[Services] Deactivated ${deactivatedCount} expired time-based services`);
+    }
+
+    return { deactivatedCount };
   }
 }
