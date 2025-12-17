@@ -65,6 +65,12 @@ export class Service {
   @Column({ nullable: true })
   location: string;
 
+  @Column({ name: 'from_location', nullable: true })
+  fromLocation: string;
+
+  @Column({ name: 'to_location', nullable: true })
+  toLocation: string;
+
   @Column({ name: 'image_url', nullable: true })
   imageUrl: string;
 

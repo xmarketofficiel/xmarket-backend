@@ -85,4 +85,26 @@ export class CreateServiceDto {
   @IsString()
   @MaxLength(255)
   location?: string;
+
+  @ApiProperty({
+    description: 'Starting location for Covoiturage services',
+    example: 'Casablanca',
+    required: false,
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fromLocation?: string;
+
+  @ApiProperty({
+    description: 'Destination location for Covoiturage services',
+    example: 'Rabat',
+    required: false,
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  toLocation?: string;
 }

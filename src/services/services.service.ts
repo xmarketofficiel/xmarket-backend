@@ -43,6 +43,8 @@ export class ServicesService {
       type: createServiceDto.type,
       departureTime: createServiceDto.departureTime ? new Date(createServiceDto.departureTime) : null,
       location: createServiceDto.location,
+      fromLocation: createServiceDto.fromLocation,
+      toLocation: createServiceDto.toLocation,
       userId,
     });
 
