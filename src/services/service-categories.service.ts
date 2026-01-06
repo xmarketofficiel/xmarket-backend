@@ -28,8 +28,8 @@ export class ServiceCategoriesService {
       const departureTime = new Date(service.departureTime);
       const hoursUntilDeparture = (departureTime.getTime() - now.getTime()) / (1000 * 60 * 60);
       
-      // Expired services get lowest priority
-      if (hoursUntilDeparture < 0) return -1000;
+      // Expired services (30min after departure) get lowest priority
+      if (hoursUntilDeparture < -0.5) return -1000;
       
       // More urgent = higher score (inverse of hours left, scaled)
       // Services departing soon get very high scores
@@ -80,13 +80,15 @@ export class ServiceCategoriesService {
       }
       
       // Get active services for this category from the relation
-      // Also filter out expired time-based services
+      // Also filter out expired time-based services (30 minutes after departure)
       const now = new Date();
       const categoryServices = dbCategory?.services?.filter(s => {
         if (!s.isActive) return false;
-        // Exclude expired time-based services
+        // Exclude expired time-based services (30-minute grace period)
         if (s.type === 'time-based' && s.departureTime) {
-          return new Date(s.departureTime) > now;
+          const departureTime = new Date(s.departureTime);
+          const thirtyMinutesAfterDeparture = new Date(departureTime.getTime() + 30 * 60 * 1000);
+          return thirtyMinutesAfterDeparture > now;
         }
         return true;
       }) || [];

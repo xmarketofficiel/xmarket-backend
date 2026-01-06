@@ -65,9 +65,9 @@ export class ServicesService {
       .createQueryBuilder('service')
       .leftJoinAndSelect('service.user', 'user')
       .where('service.isActive = :isActive', { isActive: true })
-      // Exclude expired time-based services (departure_time has passed)
+      // Exclude expired time-based services (30 minutes after departure_time)
       .andWhere(
-        '(service.type != :timeBased OR service.departureTime IS NULL OR service.departureTime > :now)',
+        '(service.type != :timeBased OR service.departureTime IS NULL OR service.departureTime + INTERVAL \'30 minutes\' > :now)',
         { timeBased: 'time-based', now: new Date() }
       );
 
@@ -274,6 +274,7 @@ export class ServicesService {
 
   /**
    * Deactivate all expired time-based services
+   * Services are deactivated 30 minutes after their departure time
    * Can be called manually or via a scheduled task
    */
   async deactivateExpiredServices(): Promise<{ deactivatedCount: number }> {
@@ -283,14 +284,14 @@ export class ServicesService {
       .set({ isActive: false })
       .where('type = :type', { type: 'time-based' })
       .andWhere('departureTime IS NOT NULL')
-      .andWhere('departureTime < :now', { now: new Date() })
+      .andWhere('departureTime + INTERVAL \'30 minutes\' < :now', { now: new Date() })
       .andWhere('isActive = :isActive', { isActive: true })
       .execute();
 
     const deactivatedCount = result.affected || 0;
     
     if (deactivatedCount > 0) {
-      console.log(`[Services] Deactivated ${deactivatedCount} expired time-based services`);
+      console.log(`[Services] Deactivated ${deactivatedCount} expired time-based services (30min grace period)`);
     }
 
     return { deactivatedCount };
