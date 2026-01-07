@@ -2,19 +2,25 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, ILike } from 'typeorm';
+import { Repository, Like, ILike, LessThan, MoreThan } from 'typeorm';
 import { User } from './../users/entities/user.entity';
 import { Service } from './entities/service.entity';
 import { Rating } from './entities/rating.entity';
+import { ContactEvent, ContactStatus } from './entities/contact-event.entity';
 import { RatingCalculationService } from './rating-calculation.service';
 import { ServiceCategoriesService } from './service-categories.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { SearchServicesDto } from './dto/search-services.dto';
 import { CreateRatingDto } from './dto/create-rating.dto';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { UpdateContactStatusDto } from './dto/update-contact-status.dto';
 import { PaginatedResponse, PaginationMeta } from './dto/pagination-response.dto';
+import { NotificationQueueService } from '../notifications/services/notification-queue.service';
 
 @Injectable()
 export class ServicesService {
@@ -24,8 +30,14 @@ export class ServicesService {
     private serviceRepository: Repository<Service>,
     @InjectRepository(Rating)
     private ratingRepository: Repository<Rating>,
+    @InjectRepository(ContactEvent)
+    private contactEventRepository: Repository<ContactEvent>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     private ratingCalculationService: RatingCalculationService,
     private serviceCategoriesService: ServiceCategoriesService,
+    @Inject(forwardRef(() => NotificationQueueService))
+    private notificationQueueService: NotificationQueueService,
   ) {}
 
   async create(createServiceDto: CreateServiceDto, userId: string) {
@@ -295,5 +307,187 @@ export class ServicesService {
     }
 
     return { deactivatedCount };
+  }
+
+  // ============= CONTACT TRACKING METHODS =============
+
+  /**
+   * Log a contact event when a customer clicks to contact a seller
+   * Returns the seller's WhatsApp number for redirect
+   */
+  async logContactEvent(createContactDto: CreateContactDto, customerId: number) {
+    const service = await this.findOne(createContactDto.serviceId);
+    
+    // Get seller info with WhatsApp number
+    const seller = await this.userRepository.findOne({
+      where: { id: parseInt(service.userId) },
+      select: ['id', 'whatsappNumber', 'fullName', 'firstName', 'lastName'],
+    });
+
+    if (!seller) {
+      throw new NotFoundException('Seller not found');
+    }
+
+    if (!seller.whatsappNumber) {
+      throw new NotFoundException('Seller WhatsApp number not available');
+    }
+
+    // Check if contact already exists
+    const existingContact = await this.contactEventRepository.findOne({
+      where: {
+        customerId,
+        serviceId: createContactDto.serviceId,
+        isActive: true,
+      },
+    });
+
+    let contactEvent;
+
+    if (existingContact) {
+      // Update existing contact (user contacted again)
+      contactEvent = existingContact;
+    } else {
+      // Create new contact event
+      const newContact = this.contactEventRepository.create({
+        customerId,
+        sellerId: seller.id,
+        serviceId: createContactDto.serviceId,
+        platform: createContactDto.platform || 'whatsapp',
+        status: ContactStatus.CONTACTED,
+      });
+
+      contactEvent = await this.contactEventRepository.save(newContact);
+
+      // Schedule follow-up notification (60 hours from now)
+      try {
+        await this.notificationQueueService.scheduleFollowUp(
+          contactEvent.id,
+          contactEvent.customerId,
+          contactEvent.serviceId,
+          contactEvent.sellerId,
+        );
+      } catch (error) {
+        // Log error but don't fail the contact logging
+        console.error('Failed to schedule follow-up notification:', error);
+      }
+    }
+
+    return {
+      contactEvent,
+      whatsappNumber: seller.whatsappNumber,
+      sellerName: seller.fullName || `${seller.firstName} ${seller.lastName}`.trim(),
+    };
+  }
+
+  /**
+   * Update contact status (e.g., when customer provides feedback)
+   */
+  async updateContactStatus(
+    contactId: string,
+    updateDto: UpdateContactStatusDto,
+    userId: number,
+  ) {
+    const contact = await this.contactEventRepository.findOne({
+      where: { id: contactId, customerId: userId, isActive: true },
+    });
+
+    if (!contact) {
+      throw new NotFoundException('Contact event not found');
+    }
+
+    const updateData: any = {
+      status: updateDto.status,
+    };
+
+    if (updateDto.customerFeedback) {
+      updateData.customerFeedback = updateDto.customerFeedback;
+    }
+
+    if (updateDto.status === ContactStatus.COMPLETED) {
+      updateData.completedAt = new Date();
+    }
+
+    if (updateDto.status === ContactStatus.RATED) {
+      updateData.completedAt = updateData.completedAt || new Date();
+    }
+
+    await this.contactEventRepository.update(contactId, updateData);
+
+    return await this.contactEventRepository.findOne({
+      where: { id: contactId },
+      relations: ['service', 'seller'],
+    });
+  }
+
+  /**
+   * Get contacts that need follow-up (48-72 hours after contact)
+   * Used by automated system to send rating requests
+   */
+  async getContactsNeedingFollowUp(): Promise<ContactEvent[]> {
+    const now = new Date();
+    const followUpStart = new Date(now.getTime() - 72 * 60 * 60 * 1000); // 72 hours ago
+    const followUpEnd = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48 hours ago
+
+    const contacts = await this.contactEventRepository.find({
+      where: {
+        status: ContactStatus.CONTACTED,
+        isActive: true,
+        contactedAt: LessThan(followUpEnd),
+        followUpSentAt: null,
+      },
+      relations: ['customer', 'seller', 'service'],
+    });
+
+    return contacts;
+  }
+
+  /**
+   * Mark follow-up as sent
+   */
+  async markFollowUpSent(contactId: string): Promise<void> {
+    await this.contactEventRepository.update(contactId, {
+      followUpSentAt: new Date(),
+      status: ContactStatus.FOLLOW_UP_SENT,
+    });
+  }
+
+  /**
+   * Get user's contact history
+   */
+  async getUserContactHistory(userId: number, page = 1, limit = 10): Promise<PaginatedResponse<any>> {
+    const offset = (page - 1) * limit;
+
+    const total = await this.contactEventRepository.count({
+      where: {
+        customerId: userId,
+        isActive: true,
+      },
+    });
+
+    const contacts = await this.contactEventRepository.find({
+      where: {
+        customerId: userId,
+        isActive: true,
+      },
+      relations: ['service', 'seller'],
+      order: { contactedAt: 'DESC' },
+      skip: offset,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    const meta: PaginationMeta = {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+    };
+
+    return { data: contacts, meta };
   }
 }

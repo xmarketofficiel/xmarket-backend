@@ -25,9 +25,12 @@ import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { SearchServicesDto } from './dto/search-services.dto';
 import { CreateRatingDto } from './dto/create-rating.dto';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { UpdateContactStatusDto } from './dto/update-contact-status.dto';
 import { PaginatedResponse } from './dto/pagination-response.dto';
 import { Service } from './entities/service.entity';
 import { Rating } from './entities/rating.entity';
+import { ContactEvent } from './entities/contact-event.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('services')
@@ -162,5 +165,83 @@ export class ServicesController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
   ): Promise<PaginatedResponse<Rating>> {
     return await this.servicesService.getServiceRatings(serviceId, page, limit);
+  }
+
+  // ============= CONTACT TRACKING ENDPOINTS =============
+
+  @Post('contact')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Log contact with seller and get WhatsApp number' })
+  @ApiResponse({
+    status: 201,
+    description: 'Contact logged successfully, returns WhatsApp number',
+    schema: {
+      type: 'object',
+      properties: {
+        contactEvent: { type: 'object' },
+        whatsappNumber: { type: 'string' },
+        sellerName: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Service or seller not found' })
+  async logContact(
+    @Body() createContactDto: CreateContactDto,
+    @Request() req,
+  ) {
+    return await this.servicesService.logContactEvent(createContactDto, req.user.id);
+  }
+
+  @Patch('contacts/:contactId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update contact status (e.g., completed, cancelled)' })
+  @ApiParam({ name: 'contactId', description: 'Contact event UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Contact status updated successfully',
+    type: ContactEvent,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Contact event not found' })
+  async updateContactStatus(
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @Body() updateDto: UpdateContactStatusDto,
+    @Request() req,
+  ): Promise<ContactEvent> {
+    return await this.servicesService.updateContactStatus(contactId, updateDto, req.user.id);
+  }
+
+  @Get('contacts/history')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user contact history' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 10 })
+  @ApiResponse({
+    status: 200,
+    description: 'Contact history retrieved successfully',
+    type: PaginatedResponse<ContactEvent>,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getContactHistory(
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
+    @Request() req,
+  ): Promise<PaginatedResponse<ContactEvent>> {
+    return await this.servicesService.getUserContactHistory(req.user.id, page, limit);
+  }
+
+  @Get('contacts/follow-up')
+  @ApiOperation({ summary: 'Get contacts needing follow-up (internal use)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Contacts needing follow-up retrieved successfully',
+    type: [ContactEvent],
+  })
+  async getContactsNeedingFollowUp(): Promise<ContactEvent[]> {
+    return await this.servicesService.getContactsNeedingFollowUp();
   }
 }

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { BullModule } from '@nestjs/bull';
 import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
@@ -33,6 +34,7 @@ import { Otp } from './otp/entities/otp.entity';
 import { ServiceCategory } from './services/entities/service-category.entity';
 import { Rating } from './services/entities/rating.entity';
 import { Service } from './services/entities/service.entity';
+import { ContactEvent } from './services/entities/contact-event.entity';
 import { Conversation } from './messages/entities/conversation.entity';
 import { Message } from './messages/entities/message.entity';
 import { SearchHistory } from './search/entities/search-history.entity';
@@ -104,6 +106,7 @@ import { AdminUser } from './admin/entities/admin-user.entity';
               Rating, 
               Service,
               ServiceCategory,
+              ContactEvent,
               Conversation,
               Message,
               SearchHistory,
@@ -159,6 +162,7 @@ import { AdminUser } from './admin/entities/admin-user.entity';
             Rating, 
             Service,
             ServiceCategory,
+            ContactEvent,
             Conversation,
             Message,
             SearchHistory,
@@ -185,6 +189,17 @@ import { AdminUser } from './admin/entities/admin-user.entity';
           } : false,
         };
       },
+      inject: [ConfigService],
+    }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        redis: configService.get('REDIS_URL') || {
+          host: configService.get('REDIS_HOST') || 'localhost',
+          port: parseInt(configService.get('REDIS_PORT')) || 6379,
+          password: configService.get('REDIS_PASSWORD') || undefined,
+        },
+      }),
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot(
