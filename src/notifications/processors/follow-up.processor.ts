@@ -110,7 +110,9 @@ export class FollowUpProcessor {
                         `${customer.firstName} ${customer.lastName}`.trim() || 
                         'there';
 
-    const ratingUrl = `${process.env.FRONTEND_URL}/marketplace/services/${service.id}?action=rate&contactId=${contactId}`;
+    // Extract first URL from comma-separated FRONTEND_URL (for CORS it may contain multiple URLs)
+    const frontendUrl = process.env.FRONTEND_URL?.split(',')[0].trim() || 'http://localhost:3000';
+    const ratingUrl = `${frontendUrl}/marketplace/services/${service.id}?action=rate&contactId=${contactId}`;
 
     const emailHtml = `
       <!DOCTYPE html>
