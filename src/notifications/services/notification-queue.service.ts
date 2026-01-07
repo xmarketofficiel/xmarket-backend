@@ -23,7 +23,7 @@ export class NotificationQueueService {
    */
   async scheduleFollowUp(contactId: string, customerId: number, serviceId: string, sellerId: number) {
     // Schedule for 60 hours from now (2.5 days) - middle of 48-72h window
-    const delay = 60 * 60 * 1000; // 60 hours in milliseconds
+    const delay = 60 * 1000; // 60 hours in milliseconds
 
     await this.followUpQueue.add(
       'send-follow-up',

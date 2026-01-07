@@ -1,11 +1,15 @@
 import { Controller, Get, Param, Patch, Delete, Query, UseGuards, Request, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { NotificationQueueService } from './services/notification-queue.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationQueueService: NotificationQueueService,
+  ) {}
 
   @Get()
   async getUserNotifications(
@@ -34,5 +38,10 @@ export class NotificationsController {
   @Delete(':id')
   async deleteNotification(@Request() req, @Param('id') notificationId: string) {
     return this.notificationsService.deleteNotification(req.user.id, notificationId);
+  }
+
+  @Get('queue/stats')
+  async getQueueStats() {
+    return this.notificationQueueService.getQueueStats();
   }
 }
