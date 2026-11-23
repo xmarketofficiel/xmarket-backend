@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, MoreThan } from 'typeorm';
 import { Otp } from './entities/otp.entity';
 import { ConfigService } from '@nestjs/config';
 
@@ -61,7 +61,7 @@ export class OtpService {
         code,
         type,
         verified: false,
-        // expiresAt: LessThan(new Date()),
+        expiresAt: MoreThan(new Date()),
       },
     });
 

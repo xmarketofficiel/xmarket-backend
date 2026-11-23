@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseIntPipe, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFile, ParseIntPipe, BadRequestException, Query, DefaultValuePipe } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -83,18 +83,30 @@ export class UsersController {
     return safeUser;
   }
 
+  @Get(':id/community')
+  @ApiOperation({ summary: 'View a UM6P community member and their active listings' })
+  async getCommunityProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  ) {
+    return this.usersService.getCommunityProfile(id, page);
+  }
+
   @Get(':id')
-  @ApiOperation({ summary: 'Get user public profile' })
-  @ApiResponse({ status: 200, description: 'User public profile retrieved successfully' })
-  async getUserProfile(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.getUserProfile(id);
+  @ApiOperation({ summary: 'Get own account details or another member community profile' })
+  @ApiResponse({ status: 200, description: 'Marketplace profile retrieved successfully' })
+  async getUserProfile(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return id === user.id
+      ? this.usersService.getUserProfile(id)
+      : this.usersService.getCommunityProfile(id);
   }
 
   @Get(':id/items')
   @ApiOperation({ summary: 'Get user items' })
   @ApiResponse({ status: 200, description: 'User items retrieved successfully' })
-  async getUserItems(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.getUserItems(id);
+  async getUserItems(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    if (id === user.id) return this.usersService.getUserItems(id);
+    return (await this.usersService.getCommunityProfile(id)).items;
   }
 
   @Get(':id/interests')
@@ -104,7 +116,8 @@ export class UsersController {
     return { message: 'User interests endpoint', userId: id };
   }
 
-  @Post(':id/follow')
+  // Following other members remains outside the marketplace scope.
+  // @Post(':id/follow')
   @ApiOperation({ summary: 'Toggle follow user' })
   @ApiResponse({ status: 200, description: 'Follow status toggled successfully' })
   async followUser(

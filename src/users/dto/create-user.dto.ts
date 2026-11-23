@@ -1,4 +1,5 @@
-import { IsEmail, IsString, IsPhoneNumber, MinLength, MaxLength, IsOptional, IsBoolean } from 'class-validator';
+import { COMMUNITY_EMAIL_PATTERN } from '../../common/community';
+import { Matches, IsEmail, IsString, IsPhoneNumber, MinLength, MaxLength, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
@@ -8,8 +9,9 @@ export class CreateUserDto {
   @MaxLength(100)
   fullName: string;
 
-  @ApiProperty({ example: 'john.doe@university.edu', description: 'University email address' })
+  @ApiProperty({ example: 'john.doe@um6p.ma', description: 'University email address' })
   @IsEmail()
+  @Matches(COMMUNITY_EMAIL_PATTERN, { message: 'Use an @um6p.ma or @student.1337.ma email address.' })
   email: string;
 
   @ApiProperty({ example: '+1234567890', description: 'WhatsApp number' })

@@ -1,10 +1,17 @@
-import { IsEmail, IsString, IsPhoneNumber, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator';
+import { COMMUNITY_EMAIL_PATTERN } from '../../common/community';
+import { Matches, IsEmail, IsString, IsPhoneNumber, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsMoroccanPhone } from '../../common/validators/moroccan-phone.validator';
 
 export class CompleteRegistrationDto {
-  @ApiProperty({ example: 'john.doe@university.edu', description: 'User email' })
+  @ApiProperty({ description: 'Community email verification proof' })
+  @IsString()
+  @MinLength(1)
+  registrationToken: string;
+
+  @ApiProperty({ example: 'john.doe@um6p.ma', description: 'User email' })
   @IsEmail()
+  @Matches(COMMUNITY_EMAIL_PATTERN, { message: 'Use an @um6p.ma or @student.1337.ma email address.' })
   email: string;
 
   @ApiProperty({ example: 'John', description: 'First name of the user' })

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res, Req, Get, Patch, Param, Query, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Body, Res, Req, Get, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
@@ -10,10 +10,6 @@ import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
-import { VerifyDiscord1337Dto } from './dto/verify-discord-1337.dto';
-import { CreateJoinRequestDto } from '../join-requests/dto/create-join-request.dto';
-import { UpdateJoinRequestDto } from '../join-requests/dto/update-join-request.dto';
-import { JoinRequestsService } from '../join-requests/join-requests.service';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -23,8 +19,7 @@ import { User } from '../users/entities/user.entity';
 export class AuthController {
   constructor(
     private authService: AuthService,
-    private adminAuthService: AdminAuthService,
-    private joinRequestsService: JoinRequestsService
+    private adminAuthService: AdminAuthService
   ) {}
 
   @Public()
@@ -210,41 +205,11 @@ export class AuthController {
     return user;
   }
 
-  // Join Request endpoints
-  @Public()
-  @Post('join-request')
-  @ApiOperation({ summary: 'Submit a request to join XMarket' })
-  @ApiResponse({ status: 201, description: 'Join request submitted successfully' })
-  async createJoinRequest(@Body() createJoinRequestDto: CreateJoinRequestDto) {
-    return this.joinRequestsService.create(createJoinRequestDto);
-  }
-
-  @Patch('join-request/:id')
-  @ApiOperation({ summary: 'Update join request status (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Join request updated successfully' })
-  async updateJoinRequest(
-    @Param('id') id: number,
-    @Body() updateJoinRequestDto: UpdateJoinRequestDto,
-    @CurrentUser() user: User
-  ) {
-    return this.joinRequestsService.update(id, { ...updateJoinRequestDto, reviewedBy: user.id });
-  }
-
-  @Get('join-requests')
-  @ApiOperation({ summary: 'Get all join requests (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Join requests retrieved successfully' })
-  async getAllJoinRequests(@Query('status') status?: string) {
-    if (status === 'pending') {
-      return this.joinRequestsService.findPending();
-    }
-    return this.joinRequestsService.findAll();
-  }
-
+  // External join-request endpoints are retired; signup is community-only.
   @Public()
   @Post('check-eligibility')
   async checkEligibility(@Body() body: { email: string }) {
-    // Simple eligibility check - can be expanded later
-    return { eligible: true, message: 'Email is eligible for registration' };
+    return this.authService.checkEmailEligibility(body.email || '');
   }
 
   @Get('debug/cookies')
@@ -266,11 +231,5 @@ export class AuthController {
     };
   }
 
-  @Public()
-  @Post('discord/verify-1337')
-  @ApiOperation({ summary: 'Verify Discord 1337 server membership' })
-  @ApiResponse({ status: 200, description: 'Discord verification completed' })
-  async verifyDiscord1337(@Body() verifyDto: VerifyDiscord1337Dto) {
-    return this.authService.verifyDiscord1337(verifyDto);
-  }
+  // Discord signup is retired; both community domains use email OTP.
 }

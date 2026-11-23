@@ -4,13 +4,13 @@ import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../email/email.service';
-import { JoinRequestsService } from '../join-requests/join-requests.service';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole, UserStatus } from '../users/entities/user.entity';
 import { normalizeMoroccanPhone } from '../common/validators/moroccan-phone.validator';
+import { isCommunityEmail } from '../common/community';
 import * as bcrypt from 'bcryptjs';
 import { last } from 'rxjs';
 import passport from 'passport';
@@ -23,8 +23,20 @@ export class AuthService {
     private configService: ConfigService,
     private otpService: OtpService,
     private emailService: EmailService,
-    private joinRequestsService: JoinRequestsService,
   ) {}
+
+  checkEmailEligibility(email: string): { eligible: boolean; reason: string } {
+    const eligible = isCommunityEmail(email);
+    return { eligible, reason: eligible ? 'university_email' : 'community_only' };
+  }
+
+  private createRegistrationToken(email: string): string {
+    // A separate signing key prevents membership proofs from acting as login tokens.
+    return this.jwtService.sign(
+      { email: email.toLowerCase().trim(), verification: 'email-otp', purpose: 'community-registration' },
+      { secret: `${this.configService.get<string>('JWT_SECRET')}:community-registration`, expiresIn: '15m' },
+    );
+  }
 
   async validateUser(email: string, password: string): Promise<any> {
     // Normalize email to lowercase for consistent lookup
@@ -45,6 +57,10 @@ export class AuthService {
     const user = await this.validateUser(normalizedEmail, loginDto.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (!isCommunityEmail(user.email)) {
+      throw new UnauthorizedException('Use your @um6p.ma or @student.1337.ma community account.');
     }
 
     if (!user.isVerified) {
@@ -87,9 +103,9 @@ export class AuthService {
     }
     
     // Check email eligibility
-    const eligibility = await this.joinRequestsService.checkEmailEligibility(normalizedEmail);
+    const eligibility = this.checkEmailEligibility(normalizedEmail);
     if (!eligibility.eligible) {
-      throw new UnauthorizedException('This email address is not authorized to register. Please submit a membership request or use a valid university email address.');
+      throw new UnauthorizedException('Use an @um6p.ma or @student.1337.ma email address to join the UM6P community.');
     }
 
     // Generate and send OTP
@@ -108,12 +124,20 @@ export class AuthService {
     // Normalize email to lowercase for consistent comparison
     const normalizedEmail = email.toLowerCase().trim();
     
+    if (!this.checkEmailEligibility(normalizedEmail).eligible) {
+      throw new UnauthorizedException('Use a community university email address.');
+    }
+
     const isValid = await this.otpService.verifyOtp(normalizedEmail, otp, 'registration');
     if (!isValid) {
       throw new BadRequestException('Invalid or expired verification code');
     }
 
-    return { message: 'Verification code validated successfully', verified: true };
+    return {
+      message: 'Verification code validated successfully',
+      verified: true,
+      registrationToken: this.createRegistrationToken(normalizedEmail),
+    };
   }
   private extractFullName(email: string): string | null {
     if (!email || typeof email !== 'string') return null;
@@ -153,6 +177,20 @@ export class AuthService {
     // Normalize email to lowercase for consistent storage
     const normalizedEmail = email.toLowerCase().trim();
     
+    // Membership must be verified on the server, even when signup is called directly.
+    let membership: { email: string; verification: string; purpose: string };
+    try {
+      membership = this.jwtService.verify(completeRegistrationDto.registrationToken, {
+        secret: `${this.configService.get<string>('JWT_SECRET')}:community-registration`,
+      });
+    } catch {
+      throw new UnauthorizedException('Verify your community membership before registering.');
+    }
+    if (membership.purpose !== 'community-registration' || membership.email !== normalizedEmail ||
+        membership.verification !== 'email-otp' || !isCommunityEmail(normalizedEmail)) {
+      throw new UnauthorizedException('Registration is limited to verified community students and staff.');
+    }
+
     // Normalize phone number to international format (+212...)
     const normalizedPhone = normalizeMoroccanPhone(whatsappNumber);
 
@@ -298,6 +336,10 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
+      if (!isCommunityEmail(user.email)) {
+        throw new UnauthorizedException('A UM6P community account is required.');
+      }
+
       const newPayload = { email: user.email, sub: user.id };
       const accessToken = this.jwtService.sign(newPayload);
 
@@ -361,93 +403,5 @@ export class AuthService {
     };
   }
 
-  async verifyDiscord1337(verifyDto: any): Promise<any> {
-    const { code } = verifyDto;
-    
-    try {
-      // Step 1: Exchange authorization code for access token
-      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: process.env.DISCORD_CLIENT_ID,
-          client_secret: process.env.DISCORD_CLIENT_SECRET,
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: `${process.env.FRONTEND_URL}/auth/discord/callback`,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new BadRequestException('Failed to exchange Discord authorization code');
-      }
-
-      const tokenData = await tokenResponse.json();
-      const accessToken = tokenData.access_token;
-
-      // Step 2: Get user information from Discord
-      const userResponse = await fetch('https://discord.com/api/users/@me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!userResponse.ok) {
-        throw new BadRequestException('Failed to fetch Discord user data');
-      }
-
-      const discordUser = await userResponse.json();
-      console.log('Discord User:', discordUser);
-
-      // Step 3: Get user's guild memberships
-      const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!guildsResponse.ok) {
-        throw new BadRequestException('Failed to fetch Discord guild memberships');
-      }
-
-      const guilds = await guildsResponse.json();
-      console.log('Guilds:', guilds);
-
-      // Step 4: Check if user is a member of 1337 Discord server
-      const guild1337Id = process.env.DISCORD_1337_GUILD_ID;
-      const is1337Member = guilds.some((guild: any) => guild.id === guild1337Id);
-
-      if (!is1337Member) {
-        throw new BadRequestException('You must be a member of the 1337 Discord server to register. Please join the server first.');
-      }
-
-      return {
-        verified: true,
-        user: {
-          id: discordUser.id,
-          username: discordUser.username,
-          discriminator: discordUser.discriminator,
-          email: discordUser.email,
-          avatar: discordUser.avatar,
-          avatar_url: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null,
-          global_name: discordUser.global_name,
-          is_guild_member: true,
-          guild_name: '1337 School'
-        },
-        message: 'Discord verification successful! 1337 server membership verified.',
-      };
-
-    } catch (error) {
-      console.error('Discord verification error:', error);
-      
-      if (error instanceof BadRequestException || error instanceof ConflictException) {
-        throw error;
-      }
-      
-      throw new BadRequestException('Discord verification failed. Please try again.');
-    }
-  }
+  // Community membership is verified exclusively through university email OTP.
 }
-    

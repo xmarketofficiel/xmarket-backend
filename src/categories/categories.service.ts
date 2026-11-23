@@ -21,7 +21,7 @@ export class CategoriesService {
 
     return {
       success: true,
-      data: categories.map(category => ({
+      data: categories.filter(category => category.name.trim().toLowerCase() !== 'services').map(category => ({
         id: category.id,
         name: category.name,
         icon: category.icon || '📦', // Default icon
@@ -46,7 +46,6 @@ export class CategoriesService {
       { name: 'Pet Supplies', icon: '🐾', description: 'Pet food, toys, accessories & care items' },
       { name: 'Office Supplies', icon: '📋', description: 'Office equipment, stationery & workspace items' },
       { name: 'Food & Beverages', icon: '🍕', description: 'Food, drinks & kitchen essentials' },
-      { name: 'Services', icon: '🔧', description: 'Tutoring, repair, cleaning & other services' },
       { name: 'Other', icon: '📦', description: 'Miscellaneous items not fitting other categories' },
     ];
 

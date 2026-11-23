@@ -62,6 +62,7 @@ export class ItemsService {
           'seller.firstName',
           'seller.lastName',
           'seller.fullName',
+          'seller.userRole',
           'seller.email',
           'seller.profileImageUrl',
           'seller.profileImageSpacesUrl',
@@ -143,6 +144,7 @@ export class ItemsService {
         'seller.firstName',
         'seller.lastName',
         'seller.fullName',
+          'seller.userRole',
         'seller.email',
         'seller.profileImageUrl',
         'seller.profileImageSpacesUrl',
@@ -537,7 +539,7 @@ export class ItemsService {
       });
 
       // Return full category objects (id, name, icon, description, isActive)
-      return categories || [];
+      return (categories || []).filter(category => category.name.trim().toLowerCase() !== 'services');
     } catch (error) {
       console.error('Error fetching categories:', error);
       // Return empty array instead of throwing to prevent frontend hanging
@@ -653,6 +655,7 @@ export class ItemsService {
         .addSelect([
           'seller.id',
           'seller.fullName',
+          'seller.userRole',
           'seller.firstName',
           'seller.lastName',
           'seller.email',

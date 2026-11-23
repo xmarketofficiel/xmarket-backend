@@ -9,7 +9,6 @@ import { AdminModule } from '../admin/admin.module';
 import { AdminUser } from '../admin/entities/admin-user.entity';
 import { OtpModule } from '../otp/otp.module';
 import { EmailModule } from '../email/email.module';
-import { JoinRequestsModule } from '../join-requests/join-requests.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { LocalStrategy } from './strategies/local.strategy';
@@ -23,7 +22,6 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
     AdminModule,
     OtpModule,
     EmailModule,
-    JoinRequestsModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

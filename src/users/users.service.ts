@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
+import { Repository, MoreThan } from 'typeorm';
+import { User, UserStatus } from './entities/user.entity';
+import { isCommunityEmail } from '../common/community';
 import { UserFollow } from './entities/user-follow.entity';
 import { UserBlock } from './entities/user-block.entity';
 import { UserReport } from './entities/user-report.entity';
@@ -302,6 +303,57 @@ export class UsersService {
   }
 
   // Get user profile with comprehensive statistics
+  async getCommunityProfile(userId: number, page: number = 1) {
+    if (!Number.isSafeInteger(page) || page < 1) {
+      throw new BadRequestException('Page must be a positive integer');
+    }
+    const member = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'fullName', 'userRole', 'department', 'email', 'isVerified', 'status',
+        'profileImageUrl', 'profileImageSpacesUrl', 'createdAt', 'showPhone', 'whatsappNumber'],
+    });
+    if (!member || !member.isVerified || member.status !== UserStatus.ACTIVE || !isCommunityEmail(member.email)) {
+      throw new NotFoundException('Community member not found');
+    }
+
+    const limit = 12;
+    const [items, total] = await this.itemsRepository.findAndCount({
+      where: { sellerId: userId, isActive: true, isSold: false, anonymous: false, quantity: MoreThan(0) },
+      relations: ['images'],
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    // Explicit public fields keep account details, purchases and private listings out of profiles.
+    return {
+      user: {
+        id: member.id,
+        fullName: member.fullName,
+        userRole: member.userRole === 'staff' ? 'staff' : 'student',
+        department: member.department,
+        isVerified: member.isVerified,
+        profileImageUrl: member.profileImageSpacesUrl || member.profileImageUrl,
+        createdAt: member.createdAt,
+        ...(member.showPhone ? { whatsappNumber: member.whatsappNumber } : {}),
+      },
+      stats: { activeListingsCount: total },
+      items: items.map(item => ({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        category: item.category,
+        condition: item.condition,
+        createdAt: item.createdAt,
+        photos: [...(item.images || [])]
+          .sort((a, b) => a.imageOrder - b.imageOrder)
+          .map(photo => photo.spacesUrl || photo.cloudinaryUrl || photo.imageUrl)
+          .filter(Boolean),
+      })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit), hasMore: page * limit < total },
+    };
+  }
+
   async getUserProfile(userId: number) {
     try {
       // Get user with privacy settings
@@ -310,6 +362,7 @@ export class UsersService {
         select: [
           'id',
           'fullName', 
+          'userRole',
           'email',
           'whatsappNumber',
           'role',
@@ -374,6 +427,7 @@ export class UsersService {
       const publicUser = {
         id: user.id,
         fullName: user.fullName,
+        userRole: user.userRole === 'staff' ? 'staff' : 'student',
         email: user.email,
         whatsappNumber: undefined,
         role: user.role,

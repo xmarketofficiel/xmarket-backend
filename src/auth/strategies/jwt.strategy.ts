@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { UsersService } from '../../users/users.service';
 import { UserStatus } from '../../users/entities/user.entity';
 import { AdminUser, AdminStatus } from '../../admin/entities/admin-user.entity';
+import { isCommunityEmail } from '../../common/community';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -66,6 +67,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     
     if (!user) {
       throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.isVerified || !isCommunityEmail(user.email)) {
+      throw new UnauthorizedException('A verified UM6P community account is required.');
     }
 
     // Check if user is suspended or banned

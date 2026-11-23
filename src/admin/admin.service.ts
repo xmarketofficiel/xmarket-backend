@@ -1,3 +1,4 @@
+import { isCommunityEmail } from '../common/community';
 import {
   Injectable,
   NotFoundException,
@@ -532,12 +533,13 @@ export class AdminService {
 
     const [users, total] = await query.getManyAndCount();
 
-    const adminUsers = users.map((user) => ({
+    const adminUsers = users.map((user): AdminUserResponse => ({
       id: user.id,
       fullName: user.fullName,
       email: user.email,
       whatsappNumber: user.whatsappNumber,
       role: user.role,
+      userRole: user.userRole === 'staff' ? 'staff' : 'student',
       status: user.status,
       isVerified: user.isVerified,
       lastLogin: user.lastLogin,
@@ -565,6 +567,7 @@ export class AdminService {
       email: user.email,
       whatsappNumber: user.whatsappNumber,
       role: user.role,
+      userRole: user.userRole === 'staff' ? 'staff' : 'student',
       status: user.status,
       isVerified: user.isVerified,
       lastLogin: user.lastLogin,
@@ -800,6 +803,10 @@ export class AdminService {
   }
 
   async createUser(createUserDto: CreateUserDto): Promise<AdminUserResponse> {
+    if (!isCommunityEmail(createUserDto.email)) {
+      throw new BadRequestException('Use an @um6p.ma or @student.1337.ma community email.');
+    }
+    createUserDto.email = createUserDto.email.toLowerCase().trim();
     const existingUser = await this.userRepository.findOne({
       where: { email: createUserDto.email },
     });
@@ -822,7 +829,7 @@ export class AdminService {
       firstName: createUserDto.firstName,
       lastName: createUserDto.lastName,
       department: createUserDto.department,
-      userRole: createUserDto.userRole,
+      userRole: createUserDto.userRole || 'student',
       address: createUserDto.address,
       showSoldItems: createUserDto.showSoldItems !== undefined ? createUserDto.showSoldItems : true,
       showPurchases: createUserDto.showPurchases !== undefined ? createUserDto.showPurchases : true,

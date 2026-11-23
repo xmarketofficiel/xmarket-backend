@@ -139,7 +139,7 @@ export class JoinRequestsService {
         email: joinRequest.email,
         whatsappNumber: joinRequest.whatsappNumber,
         department: joinRequest.department,
-        userRole: joinRequest.userRole as 'seller',
+        userRole: 'student', // Legacy access-request code; no separate trading account type.
         address: joinRequest.address,
         passwordHash: hashedPassword,
         isVerified: true, // Auto-verify since admin approved

@@ -13,14 +13,12 @@ import { UploadsModule } from './uploads/uploads.module';
 import { StorageModule } from './storage/storage.module';
 import { EmailModule } from './email/email.module';
 import { OtpModule } from './otp/otp.module';
-import { ServicesModule } from './services/services.module';
-import { MessagesModule } from './messages/messages.module';
+// Services and in-app messaging are retired. Keep their entities for existing data.
 import { SearchModule } from './search/search.module';
 import { CategoriesModule } from './categories/categories.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
-import { WaitlistModule } from './waitlist/waitlist.module';
-import { JoinRequestsModule } from './join-requests/join-requests.module';
+// External access requests and waitlists are retired for the community marketplace.
 import { CommonModule } from './common/common.module';
 import { ValidationMiddleware } from './common/middleware/validation.middleware';
 import { ErrorHandlingInterceptor } from './common/interceptors/error-handling.interceptor';
@@ -184,14 +182,10 @@ import { AdminUser } from './admin/entities/admin-user.entity';
     StorageModule,
     EmailModule,
     OtpModule,
-    ServicesModule,
-    MessagesModule,
     SearchModule,
     CategoriesModule,
     NotificationsModule,
     AdminModule,
-    WaitlistModule,
-    JoinRequestsModule,
     FeaturedProductsModule,
     CommonModule,
   ],

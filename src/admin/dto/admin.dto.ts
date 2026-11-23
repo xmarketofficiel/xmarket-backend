@@ -1,3 +1,4 @@
+import { COMMUNITY_EMAIL_PATTERN } from '../../common/community';
 export interface AdminDashboardStats {
   totalUsers: number;
   totalItems: number;
@@ -15,6 +16,7 @@ export interface AdminDashboardStats {
 }
 
 export interface AdminUserResponse {
+  userRole: 'student' | 'staff';
   id: number;
   fullName: string;
   email: string;
@@ -80,7 +82,7 @@ export interface AdminReportResponse {
   createdAt: Date;
 }
 
-import { IsEmail, IsString, IsEnum, MinLength, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import { Matches, IsEmail, IsString, IsEnum, MinLength, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsMoroccanPhone } from '../../common/validators/moroccan-phone.validator';
 
@@ -119,8 +121,9 @@ export class CreateUserDto {
   @IsString()
   fullName: string;
 
-  @ApiProperty({ example: 'john.doe@university.edu', description: 'User email address' })
+  @ApiProperty({ example: 'john.doe@um6p.ma', description: 'User email address' })
   @IsEmail()
+  @Matches(COMMUNITY_EMAIL_PATTERN, { message: 'Use an @um6p.ma or @student.1337.ma email address.' })
   email: string;
 
   @ApiProperty({ 
@@ -152,10 +155,10 @@ export class CreateUserDto {
   @IsString()
   department?: string;
 
-  @ApiProperty({ example: 'student', description: 'User role type', enum: ['student', 'staff', 'seller'], required: false })
+  @ApiProperty({ example: 'student', description: 'User role type', enum: ['student', 'staff'], required: false })
   @IsOptional()
-  @IsEnum(['student', 'staff', 'seller'])
-  userRole?: 'student' | 'staff' | 'seller';
+  @IsEnum(['student', 'staff'])
+  userRole?: 'student' | 'staff' = 'student';
 
   @ApiProperty({ example: '123 Main St, City', description: 'User address', required: false })
   @IsOptional()
