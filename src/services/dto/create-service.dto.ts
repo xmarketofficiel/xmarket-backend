@@ -4,20 +4,20 @@ import {
   IsNotEmpty,
   IsEnum,
   IsNumber,
-  IsPositive,
   IsOptional,
+  IsUUID,
+  IsDateString,
   MinLength,
   MaxLength,
   Min,
   Max,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ServiceCategory } from '../enum/service-category.enum';
 
 export class CreateServiceDto {
   @ApiProperty({
     description: 'Title of the service',
-    example: 'Professional Home Cleaning Service',
+    example: 'Carpooling to Rabat',
     minLength: 3,
     maxLength: 100,
   })
@@ -29,20 +29,19 @@ export class CreateServiceDto {
 
   @ApiProperty({
     description: 'Detailed description of the service',
-    example: 'Professional cleaning service for homes and offices. We provide deep cleaning, regular maintenance, and specialized cleaning services.',
-    minLength: 10,
+    example: 'Offering carpooling service from campus to Rabat city center. Comfortable ride with air conditioning.',
+    minLength: 1,
     maxLength: 2000,
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(10)
   @MaxLength(2000)
   description: string;
 
   @ApiProperty({
     description: 'Price of the service',
     example: 50.00,
-    minimum: 0.01,
+    minimum: 0,
     maximum: 999999.99,
   })
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -52,16 +51,33 @@ export class CreateServiceDto {
   price: number;
 
   @ApiProperty({
-    description: 'Category of the service',
-    enum: ServiceCategory,
-    example: ServiceCategory.CLEANER,
+    description: 'Service category slug or ID',
+    example: 'covoiturage',
   })
-  @IsEnum(ServiceCategory)
-  category: ServiceCategory;
+  @IsString()
+  @IsNotEmpty()
+  serviceCategoryId: string;
+
+  @ApiProperty({
+    description: 'Service type',
+    enum: ['time-based', 'ongoing'],
+    example: 'time-based',
+  })
+  @IsEnum(['time-based', 'ongoing'])
+  type: string;
+
+  @ApiProperty({
+    description: 'Departure time for time-based services',
+    example: '2024-12-15T14:30:00.000Z',
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  departureTime?: string;
 
   @ApiProperty({
     description: 'Location where the service is provided',
-    example: 'New York, NY',
+    example: 'UM6P Campus',
     required: false,
     maxLength: 255,
   })
@@ -69,4 +85,26 @@ export class CreateServiceDto {
   @IsString()
   @MaxLength(255)
   location?: string;
+
+  @ApiProperty({
+    description: 'Starting location for Covoiturage services',
+    example: 'Casablanca',
+    required: false,
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fromLocation?: string;
+
+  @ApiProperty({
+    description: 'Destination location for Covoiturage services',
+    example: 'Rabat',
+    required: false,
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  toLocation?: string;
 }

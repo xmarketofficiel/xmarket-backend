@@ -1,25 +1,34 @@
-# Railway-compatible Dockerfile with build verification
-FROM node:20-alpine
+# Use Debian-based Node image (better Sharp compatibility)
+FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files and npm configuration
+# Install Sharp dependencies for Debian
+RUN apt-get update && apt-get install -y \
+    libvips-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
 COPY package*.json ./
-COPY .npmrc ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --include=optional --legacy-peer-deps
 
 # Copy source code
 COPY . .
 
-# Build the application with verification
+# Build the application
 RUN npm run build && \
     echo "Build completed. Checking dist directory:" && \
     ls -la dist/ && \
-    echo "Verifying main.js exists:" && \
     test -f dist/main.js && \
-    echo "✅ Build successful - main.js found"
+    echo "✅ Build successful"
+
+# Verify Sharp works
+RUN node -e "require('sharp')" && echo "✅ Sharp loaded successfully"
+
+# Remove dev dependencies
+RUN npm prune --production
 
 # Start the application
 CMD ["npm", "run", "start:prod"]

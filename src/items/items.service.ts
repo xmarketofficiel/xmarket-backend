@@ -55,7 +55,8 @@ export class ItemsService {
     try {
       const { page = 1, limit = 12, category, minPrice, maxPrice, condition, search, sortBy = 'createdAt', sortOrder = 'DESC' } = searchDto;
 
-      const query = this.itemsRepository.createQueryBuilder('item')
+      // Base query for counting and basic filtering
+      const baseQuery = this.itemsRepository.createQueryBuilder('item')
         .leftJoin('item.seller', 'seller')
         .addSelect([
           'seller.id',
@@ -76,59 +77,144 @@ export class ItemsService {
         .andWhere('item.quantity > :quantity', { quantity: 0 });
       
 
-    if (category) {
-      query.andWhere('item.category = :category', { category });
-    }
-    
-    if (minPrice) {
-      query.andWhere('item.price >= :minPrice', { minPrice });
-    }
-    
-    if (maxPrice) {
-      query.andWhere('item.price <= :maxPrice', { maxPrice });
-    }
-    
-    if (condition) {
-      query.andWhere('item.condition = :condition', { condition });
-    }
-    
-    if (search) {
-      query.andWhere('(item.title ILIKE :search OR item.description ILIKE :search)', 
-        { search: `%${search}%` });
-    }
+      if (category) {
+        baseQuery.andWhere('item.category = :category', { category });
+      }
       
-    // Safe column mapping for sorting
-    // Define safe column mapping
-    const columnMap = {
-      'createdAt': 'item.createdAt',
-      'updatedAt': 'item.updatedAt',
-      'price': 'item.price',
-      'title': 'item.title',
-      'viewCount': 'item.viewCount',
-      'created_at': 'item.createdAt',
-      'updated_at': 'item.updatedAt',
-      'view_count': 'item.viewCount'
-    };
-
-    const orderByColumn = columnMap[sortBy] || columnMap['createdAt'];
-    query.orderBy(orderByColumn, sortOrder.toUpperCase() as 'ASC' | 'DESC');
+      if (minPrice) {
+        baseQuery.andWhere('item.price >= :minPrice', { minPrice });
+      }
       
-    const [items, total] = await query
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+      if (maxPrice) {
+        baseQuery.andWhere('item.price <= :maxPrice', { maxPrice });
+      }
+      
+      if (condition) {
+        baseQuery.andWhere('item.condition = :condition', { condition });
+      }
+      
+      if (search) {
+        baseQuery.andWhere('(item.title ILIKE :search OR item.description ILIKE :search)', 
+          { search: `%${search}%` });
+      }
+      
+      // Get total count
+      const total = await baseQuery.getCount();
+      
+      // Safe column mapping for sorting
+      const columnMap = {
+        'createdAt': 'item.createdAt',
+        'updatedAt': 'item.updatedAt',
+        'price': 'item.price',
+        'title': 'item.title',
+        'viewCount': 'item.viewCount',
+        'created_at': 'item.createdAt',
+        'updated_at': 'item.updatedAt',
+        'view_count': 'item.viewCount'
+      };
 
-    const totalPages = Math.ceil(total / limit);
-    const hasMore = page < totalPages;
+      const orderByColumn = columnMap[sortBy] || columnMap['createdAt'];
+      
+      let items: Item[] = [];
+      
+      // If no category filter is specified, use diverse category distribution
+      if (!category && !search) {
+        // Strategy: Fetch items distributed across categories for diverse feed
+        // Use ROW_NUMBER() to rank items within each category, then interleave
+        const diverseQuery = this.itemsRepository.createQueryBuilder('item')
+          .leftJoin('item.seller', 'seller')
+          .addSelect([
+            'seller.id',
+            'seller.firstName',
+            'seller.lastName',
+            'seller.fullName',
+            'seller.email',
+            'seller.profileImageUrl',
+            'seller.profileImageSpacesUrl',
+            'seller.isVerified',
+            'seller.showSoldItems',
+            'seller.showPurchases'
+          ])
+          .leftJoinAndSelect('item.images', 'images')
+          .where('item.isActive = :isActive', { isActive: true })
+          .andWhere('item.isSold = :isSold', { isSold: false })
+          .andWhere('item.quantity > :quantity', { quantity: 0 });
+        
+        if (minPrice) {
+          diverseQuery.andWhere('item.price >= :minPrice', { minPrice });
+        }
+        
+        if (maxPrice) {
+          diverseQuery.andWhere('item.price <= :maxPrice', { maxPrice });
+        }
+        
+        if (condition) {
+          diverseQuery.andWhere('item.condition = :condition', { condition });
+        }
+        
+        // Use a subquery with ROW_NUMBER to get diverse results
+        // This query ranks items within each category and picks items round-robin
+        // Map to actual database column names (snake_case)
+        const dbColumnMap = {
+          'item.createdAt': 'created_at',
+          'item.updatedAt': 'updated_at',
+          'item.price': 'price',
+          'item.title': 'title',
+          'item.viewCount': 'view_count'
+        };
+        
+        const dbOrderColumn = dbColumnMap[orderByColumn] || 'created_at';
+        
+        const subQuery = `
+          SELECT id FROM (
+            SELECT 
+              id,
+              category,
+              ROW_NUMBER() OVER (PARTITION BY category ORDER BY "${dbOrderColumn}" ${sortOrder.toUpperCase()}) as rn,
+              "${dbOrderColumn}" as sort_col
+            FROM items
+            WHERE is_active = true 
+              AND is_sold = false 
+              AND quantity > 0
+              ${minPrice ? `AND price >= ${minPrice}` : ''}
+              ${maxPrice ? `AND price <= ${maxPrice}` : ''}
+              ${condition ? `AND condition = '${condition}'` : ''}
+          ) ranked
+          ORDER BY rn, sort_col ${sortOrder.toUpperCase()}
+          LIMIT ${limit} OFFSET ${(page - 1) * limit}
+        `;
+        
+        const itemIds = await this.itemsRepository.query(subQuery);
+        const ids = itemIds.map((row: any) => row.id);
+        
+        if (ids.length > 0) {
+          items = await diverseQuery
+            .andWhere('item.id IN (:...ids)', { ids })
+            .orderBy('images.imageOrder', 'ASC')
+            .addOrderBy(`CASE ${ids.map((id, idx) => `WHEN item.id = ${id} THEN ${idx}`).join(' ')} END`)
+            .getMany();
+        }
+      } else {
+        // Regular query with normal pagination when filtering by category or searching
+        items = await baseQuery
+          .orderBy('images.imageOrder', 'ASC')
+          .addOrderBy(orderByColumn, sortOrder.toUpperCase() as 'ASC' | 'DESC')
+          .skip((page - 1) * limit)
+          .take(limit)
+          .getMany();
+      }
 
-    return { 
-      items, 
-      total, 
-      page: Number(page),
-      limit: Number(limit),
-      totalPages,
-      hasMore
-    };
+      const totalPages = Math.ceil(total / limit);
+      const hasMore = page < totalPages;
+
+      return { 
+        items, 
+        total, 
+        page: Number(page),
+        limit: Number(limit),
+        totalPages,
+        hasMore
+      };
     } catch (error) {
       console.error('Error in findAll items service:', error);
       throw new Error(`Failed to fetch items: ${error.message}`);
@@ -156,6 +242,7 @@ export class ItemsService {
       ])
       .leftJoinAndSelect('item.images', 'images')
       .leftJoinAndSelect('item.interests', 'interests')
+      .orderBy('images.imageOrder', 'ASC')
       .where('item.id = :id', { id })
       .getOne();
 
@@ -665,7 +752,8 @@ export class ItemsService {
         ])
         .leftJoinAndSelect('item.images', 'images')
         .where('favorite.userId = :userId', { userId })
-        .orderBy('favorite.createdAt', 'DESC')
+        .orderBy('images.imageOrder', 'ASC')
+        .addOrderBy('favorite.createdAt', 'DESC')
         .take(validatedLimit)
         .skip((validatedPage - 1) * validatedLimit)
         .getManyAndCount();
@@ -1065,7 +1153,8 @@ export class ItemsService {
       .leftJoinAndSelect('purchase.buyer', 'buyer')
       .where('item.sellerId = :sellerId', { sellerId })
       .andWhere('purchase.status = :status', { status: PurchaseStatus.BUYER_CONFIRMED })
-      .orderBy('purchase.createdAt', 'DESC')
+      .orderBy('images.imageOrder', 'ASC')
+      .addOrderBy('purchase.createdAt', 'DESC')
       .getMany();
   }
 

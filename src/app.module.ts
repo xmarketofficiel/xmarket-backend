@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { BullModule } from '@nestjs/bull';
 import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
@@ -28,8 +29,10 @@ import { Item } from './items/entities/item.entity';
 import { ItemImage } from './items/entities/item-image.entity';
 import { Interest } from './interests/entities/interest.entity';
 import { Otp } from './otp/entities/otp.entity';
+import { ServiceCategory } from './services/entities/service-category.entity';
 import { Rating } from './services/entities/rating.entity';
 import { Service } from './services/entities/service.entity';
+import { ContactEvent } from './services/entities/contact-event.entity';
 import { Conversation } from './messages/entities/conversation.entity';
 import { Message } from './messages/entities/message.entity';
 import { SearchHistory } from './search/entities/search-history.entity';
@@ -58,6 +61,14 @@ import { AdminUser } from './admin/entities/admin-user.entity';
         // Support for DATABASE_URL (with SSL) or individual DATABASE_* variables
         const databaseUrl = configService.get('DATABASE_URL');
         
+        console.log('📊 DATABASE_URL from config:', databaseUrl ? `${databaseUrl.substring(0, 30)}...` : 'NOT SET');
+        console.log('📊 All DB env vars:', {
+          DATABASE_URL: databaseUrl ? 'SET' : 'NOT SET',
+          DATABASE_HOST: configService.get('DATABASE_HOST'),
+          DATABASE_PORT: configService.get('DATABASE_PORT'),
+          DATABASE_NAME: configService.get('DATABASE_NAME'),
+        });
+        
         if (databaseUrl && databaseUrl.trim() !== '') {
           // Validate and parse the DATABASE_URL
           let url: URL;
@@ -69,6 +80,14 @@ import { AdminUser } from './admin/entities/admin-user.entity';
               `Expected format: postgresql://username:password@host:port/database`
             );
           }
+          
+          console.log('🔗 Connecting to Railway Postgres:', {
+            host: url.hostname,
+            port: parseInt(url.port) || 5432,
+            database: url.pathname.slice(1),
+            ssl: 'enabled with rejectUnauthorized=false'
+          });
+          
           return {
             type: 'postgres',
             host: url.hostname,
@@ -84,6 +103,8 @@ import { AdminUser } from './admin/entities/admin-user.entity';
               Otp, 
               Rating, 
               Service,
+              ServiceCategory,
+              ContactEvent,
               Conversation,
               Message,
               SearchHistory,
@@ -104,19 +125,21 @@ import { AdminUser } from './admin/entities/admin-user.entity';
             dropSchema: false, // Never drop existing data
             logging: process.env.NODE_ENV === 'development',
             // Connection timeout settings
-            connectTimeoutMS: 10000, // 10 seconds
+            connectTimeoutMS: 30000, // 30 seconds for Railway connection
             extra: {
-              connectionTimeoutMillis: 10000,
-              query_timeout: 10000,
-              statement_timeout: 10000,
-              idle_in_transaction_session_timeout: 10000,
+              connectionTimeoutMillis: 30000,
+              query_timeout: 30000,
+              statement_timeout: 30000,
+              idle_in_transaction_session_timeout: 30000,
             },
-            // SSL configuration for production (Railway, AWS RDS, etc.)
-            // This fixes the "self-signed certificate in certificate chain" error
-            ssl: true ? {
-              rejectUnauthorized: false,
-              ca: undefined, // Don't require CA validation
-            } : false,
+            // SSL configuration for Railway - always required
+            ssl: {
+              rejectUnauthorized: false, // Accept self-signed certificates
+            },
+            // Railway-specific connection settings
+            keepConnectionAlive: true,
+            retryAttempts: 3,
+            retryDelay: 3000,
           };
         }
 
@@ -136,6 +159,8 @@ import { AdminUser } from './admin/entities/admin-user.entity';
             Otp, 
             Rating, 
             Service,
+            ServiceCategory,
+            ContactEvent,
             Conversation,
             Message,
             SearchHistory,
@@ -164,6 +189,17 @@ import { AdminUser } from './admin/entities/admin-user.entity';
       },
       inject: [ConfigService],
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        redis: configService.get('REDIS_URL') || {
+          host: configService.get('REDIS_HOST') || 'localhost',
+          port: parseInt(configService.get('REDIS_PORT')) || 6379,
+          password: configService.get('REDIS_PASSWORD') || undefined,
+        },
+      }),
+      inject: [ConfigService],
+    }),
     ThrottlerModule.forRoot(
       {
         ttl: 60000,
@@ -173,6 +209,13 @@ import { AdminUser } from './admin/entities/admin-user.entity';
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'uploads'),
       serveRoot: '/uploads',
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'),
+      serveRoot: '/',
+      serveStaticOptions: {
+        index: false,
+      },
     }),
     AuthModule,
     UsersModule,
